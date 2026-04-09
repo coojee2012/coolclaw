@@ -1,0 +1,82 @@
+# OpenCode Helper Configuration
+
+# Model settings
+models:
+  local:
+    # Default local model
+    default: "qwen2.5-coder-7b"
+    
+    # Model configurations
+    qwen2.5-coder-7b:
+      path: "models/Qwen2.5-Coder-7B-Instruct-Q4_K_M.gguf"
+      n_ctx: 8192
+      n_gpu_layers: 35
+      n_threads: 6
+      n_batch: 512
+      # Low VRAM mode (use more CPU if needed)
+      low_vram: false
+    
+    qwen2.5-coder-14b:
+      path: "models/Qwen2.5-Coder-14B-Instruct-Q4_K_M.gguf"
+      n_ctx: 8192
+      n_gpu_layers: 35
+      n_threads: 6
+      n_batch: 512
+      low_vram: false
+    
+    # TurboQuant optimized variants (if using turboquant fork)
+    qwen2.5-coder-7b-turbo:
+      path: "models/Qwen2.5-Coder-7B-Instruct-TurboQ4.gguf"
+      n_ctx: 16384
+      n_gpu_layers: 35
+      use_turboquant: true
+  
+  cloud:
+    # Default cloud model
+    default: "gemini-2.5-flash"
+    
+    # Gemini API settings
+    gemini:
+      api_key: ""  # Set via GEMINI_API_KEY env var
+      model: "gemini-2.5-flash"
+      # Available: gemini-3-pro, gemini-3-flash, gemini-2.5-pro, gemini-2.5-flash
+      
+      # Safety settings
+      safety_threshold: "BLOCK_MEDIUM_AND_ABOVE"
+      
+      # Generation config
+      generation_config:
+        temperature: 0.7
+        top_p: 0.9
+        max_tokens: 8192
+
+# Routing settings
+routing:
+  # Mode: "local_only", "cloud_only", "auto" (fallback)
+  mode: "auto"
+  
+  # Auto mode: use cloud for complex tasks, local for simple
+  auto_threshold_tokens: 2000
+  
+  # Timeout settings
+  local_timeout: 300
+  cloud_timeout: 60
+
+# Server settings
+server:
+  host: "127.0.0.1"
+  port: 8080
+  api_key: "sk-local-dev"
+  # OpenAI-compatible endpoint
+  openai_endpoint: "/v1/chat/completions"
+
+# Paths (on external SSD for model storage)
+paths:
+  models_dir: "/Volumes/LynnData/myclaw_models"
+  cache_dir: "./cache"
+  logs_dir: "./logs"
+
+# Logging
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
