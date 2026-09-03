@@ -26,7 +26,7 @@ def setup_logging(level: str = "INFO"):
 def cmd_chat(args, router: Router):
     console.print(
         Panel.fit(
-            "[bold blue]OpenCode Helper - Chat Mode[/bold blue]\n"
+            "[bold blue]CoolClaw - Chat Mode[/bold blue]\n"
             "Type your message and press Enter. Use /exit to quit, /clear to clear history.",
             border_style="blue",
         )
@@ -55,7 +55,7 @@ def cmd_chat(args, router: Router):
     if args.local:
         provider = Provider.LOCAL
     elif args.cloud:
-        provider = Provider.GEMINI
+        provider = Provider.GOOGLE_AI
 
     while True:
         try:
@@ -144,7 +144,7 @@ def cmd_complete(args, router: Router):
     )
 
     provider = (
-        Provider.LOCAL if args.local else (Provider.GEMINI if args.cloud else None)
+        Provider.LOCAL if args.local else (Provider.GOOGLE_AI if args.cloud else None)
     )
 
     try:
@@ -188,7 +188,10 @@ def cmd_server(args, router: Router):
         )
     )
 
-    app = create_app(router)
+    import os
+
+    web_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "web")
+    app = create_app(router, web_dir=web_dir)
 
     import uvicorn
 
@@ -203,7 +206,7 @@ def cmd_server(args, router: Router):
 def cmd_status(args, router: Router):
     status = router.get_status()
 
-    table = Table(title="OpenCode Helper Status")
+    table = Table(title="CoolClaw Status")
     table.add_column("Setting", style="cyan", justify="left")
     table.add_column("Value", style="green", justify="left")
 
@@ -226,7 +229,7 @@ def cmd_download(args, router: Router):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="OpenCode Helper - Lightweight local AI assistant",
+        description="CoolClaw - Local AI Agent Platform",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
@@ -256,7 +259,7 @@ def main():
 
     server_parser = subparsers.add_parser("serve", help="Start API server")
     server_parser.add_argument("--host", default="127.0.0.1")
-    server_parser.add_argument("--port", type=int, default=8080)
+    server_parser.add_argument("--port", type=int, default=8484)
     server_parser.add_argument("--endpoint", default="/v1/chat/completions")
     server_parser.add_argument("--model", help="Override default model")
 

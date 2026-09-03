@@ -1,0 +1,45 @@
+- generic [active] [ref=f3e1]:
+  - navigation [ref=f3e2]:
+    - generic [ref=f3e3]: ⚙️ 设置中心
+    - generic [ref=f3e4]:
+      - link "💬 对话" [ref=f3e5] [cursor=pointer]:
+        - /url: /
+      - link "📋 任务" [ref=f3e6] [cursor=pointer]:
+        - /url: /tasks.html
+      - link "📊 日志" [ref=f3e7] [cursor=pointer]:
+        - /url: /logs.html
+      - link "⚙️ 设置" [ref=f3e8] [cursor=pointer]:
+        - /url: /settings.html
+      - button "A admin" [ref=f3e10] [cursor=pointer]:
+        - generic [ref=f3e11]: A
+        - generic [ref=f3e12]: admin
+  - generic [ref=f3e13]:
+    - generic [ref=f3e14]:
+      - button "👤 个人设置" [ref=f3e15] [cursor=pointer]
+      - button "📢 通知渠道" [ref=f3e16] [cursor=pointer]
+      - button "📚 知识库" [ref=f3e17] [cursor=pointer]
+      - button "🖥️ 系统设置" [ref=f3e18] [cursor=pointer]
+      - button "👥 用户管理" [ref=f3e19] [cursor=pointer]
+      - button "ℹ️ 关于" [ref=f3e20] [cursor=pointer]
+    - generic [ref=f3e22]:
+      - heading "👤 个人偏好" [level=2] [ref=f3e23]
+      - generic [ref=f3e24]:
+        - generic [ref=f3e25]:
+          - generic [ref=f3e26]: 主题
+          - combobox [ref=f3e27]:
+            - option "深色" [selected]
+            - option "浅色"
+        - generic [ref=f3e28]:
+          - generic [ref=f3e29]: 语言
+          - combobox [ref=f3e30]:
+            - option "中文" [selected]
+            - option "English"
+        - generic [ref=f3e31]:
+          - generic [ref=f3e32]: 默认模型偏好
+          - combobox [ref=f3e33]:
+            - option "自动选择" [selected]
+            - option "本地模型优先"
+            - option "云端模型优先"
+        - generic [ref=f3e34]:
+          - generic [ref=f3e35]: 流式输出
+          - button [ref=f3e36] [cursor=pointer]

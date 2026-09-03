@@ -2,26 +2,52 @@ import os
 import logging
 import threading
 from pathlib import Path
-from typing import Optional, Iterator, AsyncIterator
-from dataclasses import dataclass
+from typing import Optional, Iterator
+from dataclasses import dataclass, field
 
 from llama_cpp import Llama
-from llama_cpp.server import app as llama_server
-from llama_cpp.server.types import (
-    CreateCompletionRequest,
-    CreateChatCompletionRequest,
-    CreateEmbeddingRequest,
-)
-import uvicorn
 
 
 logger = logging.getLogger(__name__)
+
+_LOCAL_LLM_CACHE: dict[str, "LocalLLM"] = {}
+_LOCAL_LLM_CACHE_LOCK = threading.Lock()
+
+
+def _resolve_model_path(model_path: str) -> str:
+    if os.path.isabs(model_path):
+        return model_path
+    return os.path.abspath(os.path.join(os.getcwd(), model_path))
+
+
+def get_cached_local_llm(model_path: str, **kwargs) -> "LocalLLM":
+    """Return a shared LocalLLM for the same on-disk model (avoids reload per request)."""
+    resolved = _resolve_model_path(model_path)
+    with _LOCAL_LLM_CACHE_LOCK:
+        cached = _LOCAL_LLM_CACHE.get(resolved)
+        if cached is not None:
+            return cached
+        llm = LocalLLM(model_path=resolved, **kwargs)
+        _LOCAL_LLM_CACHE[resolved] = llm
+        return llm
+
+
+def clear_local_llm_cache() -> int:
+    """Unload and drop all cached local models (e.g. after config hot-reload)."""
+    with _LOCAL_LLM_CACHE_LOCK:
+        count = len(_LOCAL_LLM_CACHE)
+        for llm in _LOCAL_LLM_CACHE.values():
+            llm.unload()
+        _LOCAL_LLM_CACHE.clear()
+        return count
 
 
 @dataclass
 class CompletionChunk:
     content: str
     is_final: bool = False
+    tool_calls: Optional[list[dict]] = None
+    finish_reason: str = ""
 
 
 class LocalLLM:
@@ -34,6 +60,10 @@ class LocalLLM:
         n_batch: int = 512,
         low_vram: bool = False,
         verbose: bool = False,
+        flash_attn: bool = True,
+        cache_type_k: str = "q4_0",
+        cache_type_v: str = "q4_0",
+        use_mmap: bool = True,
     ):
         self.model_path = model_path
         self.n_ctx = n_ctx
@@ -41,6 +71,10 @@ class LocalLLM:
         self.n_threads = n_threads
         self.n_batch = n_batch
         self.verbose = verbose
+        self.flash_attn = flash_attn
+        self.cache_type_k = cache_type_k
+        self.cache_type_v = cache_type_v
+        self.use_mmap = use_mmap
         self._llm: Optional[Llama] = None
         self._lock = threading.Lock()
 
@@ -56,15 +90,30 @@ class LocalLLM:
                         raise FileNotFoundError(f"Model not found: {resolved_path}")
 
                     logger.info(f"Loading model from {resolved_path}")
-                    self._llm = Llama(
+                    logger.info(
+                        f"Settings: n_ctx={self.n_ctx}, n_gpu_layers={self.n_gpu_layers}, "
+                        f"flash_attn={self.flash_attn}, cache_type_k={self.cache_type_k}"
+                    )
+
+                    kwargs = dict(
                         model_path=resolved_path,
                         n_ctx=self.n_ctx,
                         n_gpu_layers=self.n_gpu_layers,
                         n_threads=self.n_threads,
                         n_batch=self.n_batch,
                         verbose=self.verbose,
-                        chat_format="function_call",
+                        chat_format="qwen",
+                        use_mmap=self.use_mmap,
                     )
+
+                    if self.flash_attn:
+                        kwargs["flash_attn"] = True
+
+                    if self.cache_type_k and self.cache_type_v:
+                        kwargs["cache_type_k"] = self.cache_type_k
+                        kwargs["cache_type_v"] = self.cache_type_v
+
+                    self._llm = Llama(**kwargs)
                     logger.info("Model loaded successfully")
 
     def complete(
@@ -104,6 +153,7 @@ class LocalLLM:
     def chat(
         self,
         messages: list[dict],
+        tools: Optional[list[dict]] = None,
         max_tokens: int = 2048,
         temperature: float = 0.7,
         top_p: float = 0.9,
@@ -123,20 +173,31 @@ class LocalLLM:
             stream=stream,
         )
 
+        if tools:
+            params["tools"] = tools
+
         if stream:
 
             def generator():
                 for output in self._llm.create_chat_completion(**params):
                     delta = output["choices"][0]["delta"]
-                    if "content" in delta:
+                    if "content" in delta and delta["content"]:
                         yield CompletionChunk(content=delta["content"])
+                    elif "tool_calls" in delta:
+                        yield CompletionChunk(
+                            content="", tool_calls=delta["tool_calls"]
+                        )
                 yield CompletionChunk(content="", is_final=True)
 
             return generator()
         else:
             output = self._llm.create_chat_completion(**params)
-            content = output["choices"][0]["message"]["content"]
-            return CompletionChunk(content=content, is_final=True)
+            message = output["choices"][0]["message"]
+            content = message.get("content", "")
+            tool_calls = message.get("tool_calls")
+            return CompletionChunk(
+                content=content or "", is_final=True, tool_calls=tool_calls
+            )
 
     def _format_messages(self, messages: list[dict]) -> list[dict]:
         formatted = []
@@ -168,37 +229,3 @@ class LocalLLM:
 
     def is_loaded(self) -> bool:
         return self._llm is not None
-
-
-class LocalLLMServer:
-    def __init__(self, model_path: str, **kwargs):
-        self.model_path = model_path
-        self.kwargs = kwargs
-        self._server = None
-        self._thread: Optional[threading.Thread] = None
-
-    def start(self, host: str = "127.0.0.1", port: int = 8080):
-        if self._server is not None:
-            logger.warning("Server already running")
-            return
-
-        self._server = uvicorn.Server(
-            uvicorn.Config(
-                llama_server,
-                host=host,
-                port=port,
-                log_level="info",
-            )
-        )
-
-        self._thread = threading.Thread(target=self._server.run, daemon=True)
-        self._thread.start()
-        logger.info(f"Server started at http://{host}:{port}")
-
-    def stop(self):
-        if self._server is not None:
-            self._server.should_exit = True
-            self._server = None
-            if self._thread:
-                self._thread.join(timeout=5)
-            logger.info("Server stopped")

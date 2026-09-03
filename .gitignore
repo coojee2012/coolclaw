@@ -53,3 +53,5 @@ Thumbs.db
 *.pem
 *.key
 secrets/
+config.yaml
+config.yaml.bak

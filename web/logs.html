@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-CN" x-data="logsComponent()">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>执行日志 - CoolClaw</title>
+    
+    <script src="https://unpkg.com/htmx.org@1.9.10" defer></script>
+    <script src="https://unpkg.com/alpinejs@3.13.5" defer></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#00d9ff',
+                        secondary: '#0f3460',
+                        dark: '#1a1a2e',
+                        surface: '#16213e',
+                        card: '#0d1b2a',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        [x-cloak] { display: none !important; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0d1b2a; }
+        ::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-dark text-gray-100 min-h-screen">
+    
+    <!-- Navigation -->
+    <nav class="bg-surface border-b border-secondary px-4 py-3 flex items-center justify-between sticky top-0 z-50">
+        <span class="text-xl font-bold text-primary">🦞 CoolClaw · 执行日志</span>
+        <div class="flex items-center gap-2">
+            <a href="/" class="px-4 py-2 rounded-lg hover:bg-secondary text-gray-400">💬 对话</a>
+            <a href="/tasks.html" class="px-4 py-2 rounded-lg hover:bg-secondary text-gray-400">📋 任务</a>
+            <a href="/" class="px-4 py-2 rounded-lg bg-secondary text-primary">📊 日志</a>
+            <a href="/settings.html" class="px-4 py-2 rounded-lg hover:bg-secondary text-gray-400">⚙️ 设置</a>
+        </div>
+    </nav>
+    
+    <!-- Main content -->
+    <div class="container mx-auto max-w-6xl px-4 py-6">
+        
+        <!-- Stats -->
+        <div class="grid grid-cols-3 gap-4 mb-6">
+            <div class="bg-surface rounded-xl p-4 border border-secondary">
+                <div class="text-2xl font-bold text-primary" x-text="logs.length">0</div>
+                <div class="text-sm text-gray-400">总记录</div>
+            </div>
+            <div class="bg-surface rounded-xl p-4 border border-secondary">
+                <div class="text-2xl font-bold text-green-400" x-text="logs.filter(l => l.success).length">0</div>
+                <div class="text-sm text-gray-400">成功</div>
+            </div>
+            <div class="bg-surface rounded-xl p-4 border border-secondary">
+                <div class="text-2xl font-bold text-red-400" x-text="logs.filter(l => !l.success).length">0</div>
+                <div class="text-sm text-gray-400">失败</div>
+            </div>
+        </div>
+        
+        <!-- Filters -->
+        <div class="flex flex-wrap gap-4 mb-6">
+            <select x-model="filterTask" class="bg-card border border-secondary rounded-lg px-3 py-2">
+                <option value="">全部任务</option>
+                <template x-for="t in tasks" :key="t.id">
+                    <option :value="t.id" x-text="t.name"></option>
+                </template>
+            </select>
+            <select x-model="filterStatus" class="bg-card border border-secondary rounded-lg px-3 py-2">
+                <option value="">全部状态</option>
+                <option value="success">成功</option>
+                <option value="failed">失败</option>
+            </select>
+            <input type="text" x-model="filter" placeholder="搜索任务名称..." class="flex-1 bg-card border border-secondary rounded-lg px-3 py-2">
+            <span class="text-sm text-gray-500 self-center">自动保留最近10条/任务</span>
+        </div>
+        
+        <!-- Log list -->
+        <div class="space-y-4" x-show="filteredLogs.length > 0">
+            <template x-for="log in filteredLogs" :key="log.id">
+                <div class="bg-surface rounded-xl p-5 border border-secondary hover:border-primary/30 transition">
+                    <div class="flex items-start justify-between mb-3">
+                        <div>
+                            <h3 class="text-lg font-bold" x-text="log.task_name"></h3>
+                            <span class="text-xs text-gray-500 font-mono" x-text="'#' + log.id"></span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button @click="viewLog(log)" class="px-3 py-1 bg-primary text-dark rounded-lg text-sm font-medium hover:bg-primary/80">👁 查看</button>
+                            <span class="px-3 py-1 rounded-full text-xs font-medium"
+                                  :class="log.success ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'"
+                                  x-text="log.success ? '✅ 成功' : '❌ 失败'">
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="flex flex-wrap gap-4 text-sm text-gray-400 mb-4">
+                        <span>🕐 <span x-text="new Date(log.started_at).toLocaleString()"></span></span>
+                        <span>⏱ <span x-text="getDuration(log)"></span>ms</span>
+                        <span>📦 <span x-text="(log.results || log.step_logs || []).length"></span> 步骤</span>
+                    </div>
+                    
+                    <!-- Steps -->
+                    <div class="flex flex-wrap gap-2 mb-4">
+                        <template x-for="step in (log.results || log.step_logs || [])" :key="step">
+                            <span class="px-2 py-1 bg-card rounded text-sm"
+                                  :class="step.success ? 'text-green-400' : 'text-red-400'">
+                                <span x-text="step.capability"></span> <span x-text="step.success ? '✅' : '❌'"></span>
+                            </span>
+                        </template>
+                    </div>
+                    
+                    <!-- Output preview -->
+                    <div x-show="log.final_output" class="bg-card rounded-lg p-3 text-sm text-gray-300 max-h-24 overflow-hidden relative">
+                        <pre class="whitespace-pre-wrap" x-text="truncateOutput(log.final_output, 200)"></pre>
+                        <div class="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-card to-transparent"></div>
+                    </div>
+                </div>
+            </template>
+        </div>
+        
+        <!-- Empty state -->
+        <div x-show="filteredLogs.length === 0" class="text-center py-20">
+            <div class="text-6xl mb-4">📊</div>
+            <h3 class="text-xl font-bold text-gray-400 mb-2">暂无日志</h3>
+            <p class="text-gray-500">执行任务后将显示在这里</p>
+        </div>
+    </div>
+    
+    <!-- Toast -->
+    <div class="fixed bottom-4 right-4 space-y-2" x-data="{ toasts: [] }" @toast.window="toasts.push($event.detail); setTimeout(() => toasts.shift(), 3000)">
+        <template x-for="t in toasts" :key="t">
+            <div class="px-4 py-3 rounded-lg shadow-lg"
+                 :class="{'bg-primary text-dark': t.type!='error', 'bg-red-500 text-white': t.type=='error'}">
+                <span x-text="t.message"></span>
+            </div>
+        </template>
+    </div>
+    
+    <!-- Log Detail Modal -->
+    <div x-show="showModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" @click.self="closeModal()">
+        <div class="absolute inset-0 bg-black/70"></div>
+        <div class="relative bg-surface rounded-xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
+            <div class="p-4 border-b border-secondary flex items-center justify-between shrink-0">
+                <div>
+                    <h3 class="text-lg font-bold" x-text="selectedLog?.task_name || '执行详情'"></h3>
+                    <span class="text-xs text-gray-500 font-mono" x-text="'#' + (selectedLog?.id || '')"></span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <a :href="'/api/logs/' + selectedLog?.id + '/output'" download class="px-3 py-1.5 bg-secondary hover:bg-secondary/80 rounded text-sm">📥 下载</a>
+                    <button @click="closeModal()" class="p-2 hover:bg-secondary rounded">✕</button>
+                </div>
+            </div>
+            
+            <div class="p-4 overflow-y-auto flex-1 space-y-4">
+                <!-- Status bar -->
+                <div class="flex items-center gap-4">
+                    <span class="px-3 py-1 rounded-full text-sm font-medium"
+                          :class="selectedLog?.success ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'"
+                          x-text="selectedLog?.success ? '✅ 成功' : '❌ 失败'">
+                    </span>
+                    <span class="text-sm text-gray-400" x-text="new Date(selectedLog?.started_at).toLocaleString()"></span>
+                    <span class="text-sm text-gray-400" x-text="getDuration(selectedLog) + 'ms'"></span>
+                </div>
+                
+                <!-- Steps -->
+                <div>
+                    <h4 class="text-sm font-bold text-primary mb-2">执行步骤</h4>
+                    <template x-for="(step, idx) in (selectedLog?.results || selectedLog?.step_logs || [])" :key="idx">
+                        <div class="bg-card rounded-lg p-3 mb-2">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="px-2 py-0.5 bg-secondary rounded text-sm" x-text="step.capability"></span>
+                                <span :class="step.success ? 'text-green-400' : 'text-red-400'" x-text="(step.success ? '✅' : '❌') + ' ' + (step.duration_ms || 0) + 'ms'"></span>
+                            </div>
+                            <div class="text-xs text-gray-500 mb-1">参数: <span x-text="JSON.stringify(step.params || {})"></span></div>
+                            <div x-show="step.error" class="text-red-400 text-sm" x-text="step.error"></div>
+                            <div x-show="step.output" class="text-xs text-gray-400 mt-2">
+                                <pre class="whitespace-pre-wrap" x-text="typeof step.output === 'object' ? JSON.stringify(step.output, null, 2) : step.output"></pre>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+                
+                <!-- Final Output -->
+                <div x-show="selectedLog?.final_output">
+                    <h4 class="text-sm font-bold text-primary mb-2">最终输出</h4>
+                    <pre class="bg-card rounded-lg p-3 text-sm text-gray-300 whitespace-pre-wrap max-h-64 overflow-y-auto" x-text="selectedLog?.final_output"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function logsComponent() {
+            return {
+                logs: [],
+                filter: '',
+                filterTask: '',
+                filterStatus: '',
+                tasks: [],
+                showModal: false,
+                selectedLog: null,
+                
+                async init() {
+                    await Promise.all([this.loadLogs(), this.loadTasks()]);
+                },
+                
+                async loadLogs() {
+                    try {
+                        const res = await fetch('/api/logs');
+                        const d = await res.json();
+                        this.logs = d.logs || [];
+                    } catch (e) {
+                        console.error('Failed to load logs:', e);
+                    }
+                },
+                
+                async loadTasks() {
+                    try {
+                        const res = await fetch('/api/tasks');
+                        const d = await res.json();
+                        this.tasks = d.tasks || [];
+                    } catch (e) {
+                        console.error('Failed to load tasks:', e);
+                    }
+                },
+                
+                toggleDetails(id) {
+                    const el = document.getElementById('details-' + id);
+                    if (el) el.classList.toggle('hidden');
+                },
+                
+                viewLog(log) {
+                    this.selectedLog = log;
+                    this.showModal = true;
+                },
+                
+                closeModal() {
+                    this.showModal = false;
+                    this.selectedLog = null;
+                },
+                
+                truncateOutput(text, maxLen = 200) {
+                    if (!text) return '';
+                    return text.length > maxLen ? text.substring(0, maxLen) + '...' : text;
+                },
+                
+                getDuration(log) {
+                    if (log.duration_ms) return log.duration_ms;
+                    const steps = log.results || log.step_logs || [];
+                    return steps.reduce((a, s) => a + (s.duration_ms || 0), 0);
+                },
+                
+                get filteredLogs() {
+                    return this.logs.filter(log => {
+                        if (this.filterTask && log.task_id !== this.filterTask) return false;
+                        if (this.filterStatus === 'success' && !log.success) return false;
+                        if (this.filterStatus === 'failed' && log.success) return false;
+                        if (this.filter && !log.task_name.toLowerCase().includes(this.filter.toLowerCase())) return false;
+                        return true;
+                    });
+                }
+            };
+        }
+        
+        window.logsComponentInstance = null;
+        document.addEventListener('alpine:init', () => {
+            window.logsComponentInstance = Alpine.$data(document.querySelector('html'));
+        });
+    </script>
+</body>
+</html>

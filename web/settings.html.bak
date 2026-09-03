@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN" x-data="{ secrets: [] }">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设置 - OpenCode Helper</title>
+    
+    <script src="https://unpkg.com/htmx.org@1.9.10" defer></script>
+    <script src="https://unpkg.com/alpinejs@3.13.5" defer></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#00d9ff',
+                        secondary: '#0f3460',
+                        dark: '#1a1a2e',
+                        surface: '#16213e',
+                        card: '#0d1b2a',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="bg-dark text-gray-100 min-h-screen">
+    
+    <!-- Navigation -->
+    <nav class="bg-surface border-b border-secondary px-4 py-3 flex items-center justify-between sticky top-0 z-50">
+        <span class="text-xl font-bold text-primary">⚙️ 设置</span>
+        <div class="flex items-center gap-2">
+            <a href="/" class="px-4 py-2 rounded-lg hover:bg-secondary text-gray-400">💬 对话</a>
+            <a href="/tasks.html" class="px-4 py-2 rounded-lg hover:bg-secondary text-gray-400">📋 任务</a>
+            <a href="/logs.html" class="px-4 py-2 rounded-lg hover:bg-secondary text-gray-400">📊 日志</a>
+            <a href="/" class="px-4 py-2 rounded-lg bg-secondary text-primary">⚙️ 设置</a>
+        </div>
+    </nav>
+    
+    <!-- Main content -->
+    <div class="container mx-auto max-w-3xl px-4 py-6 space-y-6">
+        
+        <!-- API Keys -->
+        <div class="bg-surface rounded-xl p-6 border border-secondary">
+            <h2 class="text-lg font-bold text-primary mb-4 flex items-center gap-2">
+                🔑 API 密钥管理
+            </h2>
+            <p class="text-gray-400 text-sm mb-4">API 密钥使用 AES 加密存储在本地。</p>
+            
+            <div class="grid gap-4 mb-4">
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">密钥名称</label>
+                    <input type="text" id="secret-key" placeholder="如: telegram_bot_token" 
+                           class="w-full bg-card border border-secondary rounded-lg px-3 py-2 focus:border-primary focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">密钥值</label>
+                    <input type="password" id="secret-value" placeholder="输入密钥值"
+                           class="w-full bg-card border border-secondary rounded-lg px-3 py-2 focus:border-primary focus:outline-none">
+                </div>
+            </div>
+            
+            <div class="flex gap-3">
+                <button onclick="saveSecret()" class="px-4 py-2 bg-primary text-dark font-bold rounded-lg hover:bg-primary/90 transition">
+                    💾 保存
+                </button>
+            </div>
+        </div>
+        
+        <!-- Notification Config -->
+        <div class="bg-surface rounded-xl p-6 border border-secondary">
+            <h2 class="text-lg font-bold text-primary mb-4 flex items-center gap-2">
+                📡 通知渠道配置
+            </h2>
+            
+            <div class="bg-card rounded-lg p-4 border-l-2 border-primary mb-4">
+                <h3 class="font-bold mb-2">Telegram 配置</h3>
+                <ol class="text-sm text-gray-400 space-y-1 list-decimal list-inside">
+                    <li>在 Telegram 搜索 <code class="bg-secondary px-1 rounded">@BotFather</code>，发送 <code class="bg-secondary px-1 rounded">/newbot</code></li>
+                    <li>获取 Bot Token，保存为 <code class="bg-secondary px-1 rounded">telegram_bot_token</code></li>
+                    <li>保存后搜索 <code class="bg-secondary px-1 rounded">@userinfobot</code> 获取 Chat ID</li>
+                </ol>
+            </div>
+            
+            <h3 class="font-bold mb-2 text-sm">常用密钥说明</h3>
+            <div class="bg-card rounded-lg p-4 space-y-2 text-sm">
+                <div class="flex justify-between">
+                    <code class="text-primary">telegram_bot_token</code>
+                    <span class="text-gray-500">Telegram Bot 访问令牌</span>
+                </div>
+                <div class="flex justify-between">
+                    <code class="text-primary">telegram_chat_id</code>
+                    <span class="text-gray-500">接收通知的用户 ID</span>
+                </div>
+                <div class="flex justify-between">
+                    <code class="text-primary">default_webhook_url</code>
+                    <span class="text-gray-500">默认 Webhook URL</span>
+                </div>
+                <div class="flex justify-between">
+                    <code class="text-primary">smtp_user</code>
+                    <span class="text-gray-500">邮件发送用户</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Usage Example -->
+        <div class="bg-surface rounded-xl p-6 border border-secondary">
+            <h2 class="text-lg font-bold text-primary mb-4 flex items-center gap-2">
+                💡 使用示例
+            </h2>
+            
+            <div class="bg-card rounded-lg p-4 border-l-2 border-primary">
+                <h3 class="font-bold mb-2">创建每日新闻摘要任务</h3>
+                <ol class="text-sm text-gray-400 space-y-1 list-decimal list-inside">
+                    <li>前往「任务中心」点击「新建任务」</li>
+                    <li>任务名称: 每日科技新闻</li>
+                    <li>触发方式: Cron 表达式 <code class="bg-secondary px-1 rounded">0 8 * * *</code> (每天8点)</li>
+                    <li>添加步骤: web_search → clipboard_copy</li>
+                    <li>web_search 参数: <code class="bg-secondary px-1 rounded">{"query": "科技新闻"}</code></li>
+                    <li>启用通知即可收到 Telegram 推送</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast -->
+    <div class="fixed bottom-4 right-4 space-y-2" x-data="{ toasts: [] }" @toast.window="toasts.push($event.detail); setTimeout(() => toasts.shift(), 3000)">
+        <template x-for="t in toasts" :key="t">
+            <div class="px-4 py-3 rounded-lg shadow-lg"
+                 :class="{'bg-primary text-dark': t.type!='error', 'bg-red-500 text-white': t.type=='error'}">
+                <span x-text="t.message"></span>
+            </div>
+        </template>
+    </div>
+    
+    <script>
+        async function saveSecret() {
+            const key = document.getElementById('secret-key').value.trim();
+            const value = document.getElementById('secret-value').value;
+            
+            if (!key || !value) {
+                window.dispatchEvent(new CustomEvent('toast', { detail: { message: '请填写完整', type: 'error' } }));
+                return;
+            }
+            
+            try {
+                await fetch('/api/secrets', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key, value })
+                });
+                document.getElementById('secret-key').value = '';
+                document.getElementById('secret-value').value = '';
+                window.dispatchEvent(new CustomEvent('toast', { detail: { message: '已保存', type: 'success' } }));
+            } catch (e) {
+                window.dispatchEvent(new CustomEvent('toast', { detail: { message: '保存失败', type: 'error' } }));
+            }
+        }
+    </script>
+</body>
+</html>

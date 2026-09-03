@@ -1,0 +1,43 @@
+/* CoolClaw config.yaml editor (CodeMirror) */
+
+.config-yaml-editor-wrap .CodeMirror {
+    height: min(70vh, 720px);
+    min-height: 420px;
+    font-family: "SF Mono", "Fira Code", "JetBrains Mono", Menlo, Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.55;
+    background: #0d1b2a !important;
+    color: #e2e8f0;
+}
+
+.config-yaml-editor-wrap .CodeMirror-gutters {
+    background: #0a1520 !important;
+    border-right: 1px solid #1e3a5f !important;
+}
+
+.config-yaml-editor-wrap .CodeMirror-linenumber {
+    color: #4a6080 !important;
+    padding: 0 8px 0 4px;
+}
+
+.config-yaml-editor-wrap .CodeMirror-cursor {
+    border-left: 2px solid #00d9ff !important;
+}
+
+.config-yaml-editor-wrap .CodeMirror-selected {
+    background: rgba(0, 217, 255, 0.15) !important;
+}
+
+.config-yaml-editor-wrap .CodeMirror-activeline-background {
+    background: rgba(15, 52, 96, 0.35) !important;
+}
+
+.config-yaml-editor-wrap .cm-tab {
+    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="8" height="16"><path stroke="%234a6080" stroke-width="1" d="M1 14 L4 1"/></svg>');
+    background-position: left bottom;
+    background-repeat: no-repeat;
+}
+
+.config-yaml-editor-wrap .CodeMirror-scroll {
+    padding-bottom: 12px;
+}

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN" x-data="{ sidebarOpen: false }" @keydown.escape="sidebarOpen = false">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CoolClaw</title>
+    
+    <!-- HTMX for server-side rendering -->
+    <script src="https://unpkg.com/htmx.org@1.9.10" defer></script>
+    
+    <!-- Alpine.js for reactive UI -->
+    <script src="https://unpkg.com/alpinejs@3.13.5" defer></script>
+    
+    <!-- TailwindCSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#00d9ff',
+                        secondary: '#0f3460',
+                        dark: '#1a1a2e',
+                        surface: '#16213e',
+                        card: '#0d1b2a',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        [x-cloak] { display: none !important; }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0d1b2a; }
+        ::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #1a4a80; }
+        
+        /* Code blocks */
+        pre { background: #0d1b2a; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; }
+        code { background: #0d1b2a; padding: 0.125rem 0.25rem; border-radius: 0.25rem; font-family: 'SF Mono', Monaco, monospace; }
+        pre code { background: transparent; padding: 0; }
+        
+        /* Transitions */
+        .fade-in { animation: fadeIn 0.2s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        /* Toast notifications */
+        .toast-container { position: fixed; bottom: 1rem; right: 1rem; z-index: 9999; }
+    </style>
+</head>
+<body class="bg-dark text-gray-100 min-h-screen flex flex-col">
+    
+    <!-- Navigation -->
+    <nav class="bg-surface border-b border-secondary px-4 py-3 flex items-center justify-between sticky top-0 z-50">
+        <div class="flex items-center gap-4">
+            <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden p-2 hover:bg-secondary rounded">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                </svg>
+            </button>
+            <a href="/" class="text-xl font-bold text-primary">🦞 CoolClaw</a>
+        </div>
+        
+        <div class="flex items-center gap-2">
+            <!-- Status indicator -->
+            <div x-data="{ status: 'checking' }" x-init="fetch('/api/status').then(r=>r.json()).then(d=>status=d.model||'就绪')" class="text-sm text-gray-400">
+                <span x-text="status"></span>
+            </div>
+            
+            <!-- Navigation links -->
+            <div class="hidden md:flex items-center gap-1">
+                <a href="/" class="px-4 py-2 rounded-lg hover:bg-secondary transition" x-data="{ active: window.location.pathname === '/' }" :class="active ? 'bg-secondary text-primary' : 'text-gray-400'">
+                    💬 对话
+                </a>
+                <a href="/tasks.html" class="px-4 py-2 rounded-lg hover:bg-secondary transition text-gray-400">
+                    📋 任务
+                </a>
+                <a href="/logs.html" class="px-4 py-2 rounded-lg hover:bg-secondary transition text-gray-400">
+                    📊 日志
+                </a>
+                <a href="/settings.html" class="px-4 py-2 rounded-lg hover:bg-secondary transition text-gray-400">
+                    ⚙️ 设置
+                </a>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- Mobile sidebar -->
+    <div x-show="sidebarOpen" x-cloak class="fixed inset-0 z-50 lg:hidden" @click.self="sidebarOpen = false">
+        <div class="absolute inset-0 bg-black/50"></div>
+        <div class="absolute left-0 top-0 h-full w-64 bg-surface p-4">
+            <div class="flex flex-col gap-2">
+                <a href="/" class="px-4 py-3 rounded-lg hover:bg-secondary">💬 对话</a>
+                <a href="/tasks.html" class="px-4 py-3 rounded-lg hover:bg-secondary">📋 任务中心</a>
+                <a href="/logs.html" class="px-4 py-3 rounded-lg hover:bg-secondary">📊 执行日志</a>
+                <a href="/settings.html" class="px-4 py-3 rounded-lg hover:bg-secondary">⚙️ 设置</a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main content -->
+    <main class="flex-1 container mx-auto max-w-6xl px-4 py-6">
+        <!-- Page content injected here -->
+        <slot></slot>
+    </main>
+    
+    <!-- Toast container -->
+    <div class="toast-container" x-data="{ toasts: [] }" @toast.window="toasts.push({message: $event.detail.message, type: $event.detail.type || 'info'}); setTimeout(() => toasts.shift(), 4000)">
+        <template x-for="toast in toasts" :key="toast">
+            <div class="mb-2 px-4 py-3 rounded-lg shadow-lg fade-in"
+                 :class="{
+                     'bg-primary text-dark': toast.type === 'info',
+                     'bg-green-500 text-white': toast.type === 'success',
+                     'bg-red-500 text-white': toast.type === 'error'
+                 }"
+                 x-text="toast.message">
+            </div>
+        </template>
+    </div>
+</body>
+</html>

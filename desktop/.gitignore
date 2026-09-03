@@ -1,0 +1,11 @@
+node_modules/
+dist/
+repos/
+src-tauri/target/
+src-tauri/icons/*.icns
+src-tauri/icons/*.ico
+backend/build/
+backend/dist/
+backend/*.spec
+backend/backend-*
+backend/test_backend.py

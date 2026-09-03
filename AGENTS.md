@@ -1,8 +1,8 @@
-# OpenCode Agent Conventions
+# CoolClaw Agent Conventions
 
 ## Project Overview
 
-OpenCode Helper is a lightweight local AI assistant combining llama.cpp local inference with Gemini API fallback.
+CoolClaw is a local AI Agent platform combining llama.cpp local inference with cloud API fallback, MCP tools, and skill automation.
 
 ## Agent Definitions
 

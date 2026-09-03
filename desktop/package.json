@@ -1,0 +1,17 @@
+{
+  "name": "coolclaw-desktop",
+  "private": true,
+  "version": "1.0.0",
+  "description": "CoolClaw AI Coding Agent - Desktop Edition",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.11.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4"
+  }
+}

@@ -1,0 +1,1655 @@
+<!DOCTYPE html>
+<html lang="zh-CN" x-data="settingsComponent()">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设置 - CoolClaw</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10" defer></script>
+    <script src="https://unpkg.com/alpinejs@3.13.5" defer></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#00d9ff',
+                        secondary: '#0f3460',
+                        dark: '#1a1a2e',
+                        surface: '#16213e',
+                        card: '#0d1b2a',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>[x-cloak] { display: none !important; }</style>
+    <link rel="stylesheet" href="/assets/app.css">
+    <link rel="stylesheet" href="/assets/config-editor.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/addon/fold/foldgutter.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/theme/material-darker.min.css">
+    <script src="/assets/app.js"></script>
+    <script src="/assets/models-admin.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/mode/yaml/yaml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/addon/fold/foldcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/addon/fold/foldgutter.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/addon/fold/indent-fold.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/addon/edit/matchbrackets.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/addon/edit/closebrackets.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/addon/selection/active-line.min.js"></script>
+    <script src="/assets/config-editor.js"></script>
+</head>
+<body class="bg-dark text-gray-100 min-h-screen">
+
+    <nav class="bg-surface border-b border-secondary px-4 py-3 flex items-center justify-between sticky top-0 z-50">
+        <span class="text-xl font-bold text-primary">⚙️ 设置中心</span>
+        <div class="flex items-center gap-2">
+            <a href="/" class="px-4 py-2 rounded-lg hover:bg-secondary text-gray-400">💬 对话</a>
+            <a href="/tasks.html" class="px-4 py-2 rounded-lg hover:bg-secondary text-gray-400">📋 任务</a>
+            <a href="/logs.html" class="px-4 py-2 rounded-lg hover:bg-secondary text-gray-400">📊 日志</a>
+            <a href="/settings.html" class="px-4 py-2 rounded-lg bg-secondary text-primary">⚙️ 设置</a>
+            <div class="relative ml-2" x-show="user">
+                <button @click="userMenuOpen = !userMenuOpen" class="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-secondary text-sm text-gray-300">
+                    <span class="w-6 h-6 rounded-full bg-secondary flex items-center justify-center text-primary text-xs font-bold" x-text="user?.username?.[0]?.toUpperCase() || '?'"></span>
+                    <span x-text="user?.username || ''"></span>
+                </button>
+                <div x-show="userMenuOpen" @click.away="userMenuOpen = false" x-transition
+                     class="absolute right-0 mt-2 w-48 bg-surface border border-secondary rounded-lg shadow-xl z-50 py-1">
+                    <div class="px-4 py-2 border-b border-secondary">
+                        <div class="text-sm font-medium" x-text="user?.username || ''"></div>
+                        <div class="text-xs text-gray-500" x-text="user?.is_admin ? '管理员' : '用户'"></div>
+                    </div>
+                    <button @click="logout()" class="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-secondary">🚪 退出登录</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto max-w-5xl px-4 py-6">
+        <div class="flex gap-2 mb-6 border-b border-secondary pb-2 overflow-x-auto">
+            <button @click="activeTab = 'profile'" class="px-4 py-2 rounded-t-lg transition whitespace-nowrap"
+                    :class="activeTab === 'profile' ? 'bg-secondary text-primary' : 'text-gray-400 hover:text-white'">
+                👤 个人设置
+            </button>
+            <button @click="activeTab = 'notifications'" class="px-4 py-2 rounded-t-lg transition whitespace-nowrap"
+                    :class="activeTab === 'notifications' ? 'bg-secondary text-primary' : 'text-gray-400 hover:text-white'">
+                📢 通知渠道
+            </button>
+            <button @click="activeTab = 'knowledge'" class="px-4 py-2 rounded-t-lg transition whitespace-nowrap"
+                    :class="activeTab === 'knowledge' ? 'bg-secondary text-primary' : 'text-gray-400 hover:text-white'">
+                📚 知识库
+            </button>
+            <template x-if="user?.is_admin">
+                <button @click="openSystemTab()" class="px-4 py-2 rounded-t-lg transition whitespace-nowrap"
+                        :class="activeTab === 'system' ? 'bg-secondary text-primary' : 'text-gray-400 hover:text-white'">
+                    🖥️ 系统设置
+                </button>
+            </template>
+            <template x-if="user?.is_admin">
+                <button @click="activeTab = 'users'" class="px-4 py-2 rounded-t-lg transition whitespace-nowrap"
+                        :class="activeTab === 'users' ? 'bg-secondary text-primary' : 'text-gray-400 hover:text-white'">
+                    👥 用户管理
+                </button>
+            </template>
+            <template x-if="user?.is_admin">
+                <button @click="activeTab = 'models'; modelSubTab='local'; loadAllModels()" class="px-4 py-2 rounded-t-lg transition whitespace-nowrap"
+                        :class="activeTab === 'models' ? 'bg-secondary text-primary' : 'text-gray-400 hover:text-white'">
+                    🤖 模型配置
+                </button>
+            </template>
+            <button @click="activeTab = 'about'" class="px-4 py-2 rounded-t-lg transition whitespace-nowrap"
+                    :class="activeTab === 'about' ? 'bg-secondary text-primary' : 'text-gray-400 hover:text-white'">
+                ℹ️ 关于
+            </button>
+        </div>
+
+        <div x-show="activeTab === 'profile'" class="space-y-6">
+            <div class="bg-surface rounded-xl p-6 border border-secondary">
+                <h2 class="text-lg font-bold text-primary mb-4">👤 个人偏好</h2>
+                <div class="space-y-4 max-w-xl">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">主题</label>
+                        <select x-model="prefs.theme" @change="savePref('theme', prefs.theme)"
+                                class="w-full bg-card border border-secondary rounded-lg px-3 py-2 focus:border-primary focus:outline-none">
+                            <option value="dark">深色</option>
+                            <option value="light">浅色</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">语言</label>
+                        <select x-model="prefs.language" @change="savePref('language', prefs.language)"
+                                class="w-full bg-card border border-secondary rounded-lg px-3 py-2 focus:border-primary focus:outline-none">
+                            <option value="zh-CN">中文</option>
+                            <option value="en">English</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">默认模型偏好</label>
+                        <select x-model="prefs.preferred_model" @change="savePref('preferred_model', prefs.preferred_model)"
+                                class="w-full bg-card border border-secondary rounded-lg px-3 py-2 focus:border-primary focus:outline-none">
+                            <option value="auto">自动选择</option>
+                            <option value="local">本地模型优先</option>
+                            <option value="cloud">云端模型优先</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="text-sm text-gray-400">流式输出</span>
+                        <button @click="prefs.stream = !prefs.stream; savePref('stream', prefs.stream.toString())"
+                                class="relative w-11 h-6 rounded-full transition"
+                                :class="prefs.stream ? 'bg-primary' : 'bg-secondary'">
+                            <span class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition transform"
+                                  :class="prefs.stream ? 'translate-x-5' : ''"></span>
+                        </button>
+                    </div>
+                </div>
+                <div x-show="prefStatus" class="mt-4 text-sm text-green-400" x-text="prefStatus"></div>
+            </div>
+        </div>
+
+        <div x-show="activeTab === 'notifications'" class="space-y-6">
+            <div class="bg-surface rounded-xl p-6 border border-secondary">
+                <h2 class="text-lg font-bold text-primary mb-4">💬 钉钉通知</h2>
+                <div class="grid gap-4 max-w-xl">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Webhook URL</label>
+                        <input type="text" x-model="settings.dingtalk_webhook" placeholder="https://oapi.dingtalk.com/robot/send?access_token=xxx"
+                               class="w-full bg-card border border-secondary rounded-lg px-3 py-2 focus:border-primary focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">加签密钥（可选）</label>
+                        <input type="password" x-model="settings.dingtalk_secret" placeholder="SEC开头的密钥"
+                               class="w-full bg-card border border-secondary rounded-lg px-3 py-2 focus:border-primary focus:outline-none">
+                    </div>
+                    <div>
+                        <button @click="saveSetting('dingtalk_webhook', settings.dingtalk_webhook); saveSetting('dingtalk_secret', settings.dingtalk_secret)"
+                                class="px-4 py-2 bg-primary text-dark font-bold rounded-lg hover:bg-primary/90 transition">💾 保存</button>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-surface rounded-xl p-6 border border-secondary">
+                <h2 class="text-lg font-bold text-primary mb-4">🪁 飞书通知</h2>
+                <div class="grid gap-4 max-w-xl">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Webhook URL</label>
+                        <input type="text" x-model="settings.feishu_webhook" placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/xxx"
+                               class="w-full bg-card border border-secondary rounded-lg px-3 py-2 focus:border-primary focus:outline-none">
+                    </div>
+                    <div>
+                        <button @click="saveSetting('feishu_webhook', settings.feishu_webhook)"
+                                class="px-4 py-2 bg-primary text-dark font-bold rounded-lg hover:bg-primary/90 transition">💾 保存</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div x-show="activeTab === 'knowledge'" class="space-y-6">
+            <div class="bg-surface rounded-xl p-6 border border-secondary">
+                <h2 class="text-lg font-bold text-primary mb-4">📚 知识库管理</h2>
+                <p class="text-sm text-gray-400 mb-4">知识库功能允许 AI 理解你的文档。支持 PDF、TXT、Markdown、Word。</p>
+                <div class="mt-4 flex items-center gap-3">
+                    <button @click="rebuildIndex()" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg font-medium transition">🔄 重建索引</button>
+                </div>
+            </div>
+        </div>
+
+        <div x-show="activeTab === 'system'" class="space-y-4" x-cloak>
+            <!-- Header + mode toggle -->
+            <div class="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                    <h2 class="text-lg font-bold text-primary">🖥️ 系统设置</h2>
+                    <p class="text-sm text-gray-500 mt-1">通过可视化表单配置，无需手写 YAML。模型与云端 API 请在「模型配置」标签页管理。</p>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    <button @click="systemAdvanced = false; loadAppConfig()"
+                            class="px-3 py-1.5 rounded-lg text-sm transition"
+                            :class="!systemAdvanced ? 'bg-primary text-dark font-medium' : 'bg-card border border-secondary text-gray-400 hover:text-white'">
+                        标准模式
+                    </button>
+                    <button @click="enableAdvancedConfig()"
+                            class="px-3 py-1.5 rounded-lg text-sm transition"
+                            :class="systemAdvanced ? 'bg-amber-600/80 text-white font-medium' : 'bg-card border border-secondary text-gray-400 hover:text-white'">
+                        高级 · config.yaml
+                    </button>
+                </div>
+            </div>
+
+            <!-- Standard visual config -->
+            <div x-show="!systemAdvanced" class="space-y-4">
+                <div class="bg-primary/10 border border-primary/30 rounded-xl px-4 py-3 text-sm text-gray-300 flex flex-wrap gap-3 items-center">
+                    <span>💡 快速入口：</span>
+                    <button @click="activeTab='models'; modelSubTab='local'; loadAllModels()"
+                            class="text-primary hover:underline">下载本地模型</button>
+                    <span class="text-gray-600">·</span>
+                    <button @click="activeTab='models'; modelSubTab='cloud'; loadAllModels()"
+                            class="text-primary hover:underline">配置云端 API</button>
+                    <span class="text-gray-600">·</span>
+                    <button @click="activeTab='models'; modelSubTab='experts'; loadExperts()"
+                            class="text-primary hover:underline">专家路由</button>
+                </div>
+
+                <div x-show="configLoading" class="text-center py-12 text-gray-500 text-sm">加载配置…</div>
+
+                <template x-for="section in visibleConfigSections()" :key="section.id">
+                    <div class="bg-surface rounded-xl border border-secondary overflow-hidden">
+                        <div class="px-5 py-4 border-b border-secondary/60">
+                            <h3 class="font-bold text-primary flex items-center gap-2">
+                                <span x-text="section.icon || '⚙️'"></span>
+                                <span x-text="section.title"></span>
+                            </h3>
+                            <p class="text-xs text-gray-500 mt-1" x-text="section.description"></p>
+                        </div>
+                        <div class="p-5 grid gap-4 md:grid-cols-2">
+                            <template x-for="field in section.fields" :key="field.key">
+                                <div :class="field.type === 'boolean' ? 'md:col-span-2' : ''"
+                                     x-show="field.type !== 'json'">
+                                    <!-- boolean -->
+                                    <template x-if="field.type === 'boolean'">
+                                        <label class="flex items-center gap-3 cursor-pointer">
+                                            <input type="checkbox"
+                                                   :checked="!!getCfg(field.key)"
+                                                   @change="setCfg(field.key, $event.target.checked)"
+                                                   class="rounded w-4 h-4">
+                                            <span class="text-sm" x-text="field.label"></span>
+                                        </label>
+                                    </template>
+                                    <!-- select -->
+                                    <template x-if="field.type === 'select'">
+                                        <div>
+                                            <label class="block text-xs text-gray-400 mb-1" x-text="field.label"></label>
+                                            <select :value="getCfg(field.key)"
+                                                    @change="setCfg(field.key, $event.target.value)"
+                                                    class="w-full bg-card border border-secondary rounded-lg px-3 py-2 text-sm focus:border-primary focus:outline-none">
+                                                <template x-for="opt in fieldOptions(field)" :key="typeof opt === 'object' ? opt.value : opt">
+                                                    <option :value="typeof opt === 'object' ? opt.value : opt"
+                                                            :selected="getCfg(field.key) === (typeof opt === 'object' ? opt.value : opt)"
+                                                            x-text="typeof opt === 'object' ? opt.label : opt"></option>
+                                                </template>
+                                            </select>
+                                            <p x-show="selectedOptionHint(field)" class="text-xs text-gray-500 mt-1" x-text="selectedOptionHint(field)"></p>
+                                        </div>
+                                    </template>
+                                    <!-- number -->
+                                    <template x-if="field.type === 'number'">
+                                        <div>
+                                            <label class="block text-xs text-gray-400 mb-1" x-text="field.label"></label>
+                                            <input type="number"
+                                                   :value="getCfg(field.key)"
+                                                   @input="setCfg(field.key, parseInt($event.target.value, 10) || 0)"
+                                                   class="w-full bg-card border border-secondary rounded-lg px-3 py-2 text-sm focus:border-primary focus:outline-none">
+                                        </div>
+                                    </template>
+                                    <!-- text / path -->
+                                    <template x-if="field.type === 'text' || field.type === 'path'">
+                                        <div>
+                                            <label class="block text-xs text-gray-400 mb-1">
+                                                <span x-text="field.label"></span>
+                                                <span x-show="field.required" class="text-red-400 ml-1">*</span>
+                                            </label>
+                                            <input :type="field.type === 'path' ? 'text' : 'text'"
+                                                   :value="getCfg(field.key)"
+                                                   @input="setCfg(field.key, $event.target.value)"
+                                                   :placeholder="field.placeholder || ''"
+                                                   class="w-full bg-card border border-secondary rounded-lg px-3 py-2 text-sm font-mono focus:border-primary focus:outline-none">
+                                            <p x-show="field.hint" class="text-xs text-gray-500 mt-1" x-text="field.hint"></p>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                        <div class="px-5 py-3 border-t border-secondary/40 bg-card/30 flex justify-end">
+                            <button @click="saveConfigSection(section)"
+                                    class="px-4 py-2 bg-primary text-dark font-bold rounded-lg text-sm hover:bg-primary/90">
+                                保存「<span x-text="section.title"></span>」
+                            </button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Advanced: raw YAML editor -->
+            <div x-show="systemAdvanced" class="space-y-3">
+                <div class="bg-amber-900/20 border border-amber-700/40 rounded-xl px-4 py-3 text-sm text-amber-200/90">
+                    ⚠️ <strong>高级模式</strong>：直接编辑 <code class="text-amber-100">config.yaml</code>，语法错误可能导致服务无法启动。不熟悉 YAML 请使用「标准模式」。
+                </div>
+            <div class="bg-surface rounded-xl border border-secondary overflow-hidden">
+                <div class="px-4 py-3 border-b border-secondary flex flex-wrap items-center justify-between gap-3">
+                    <div class="min-w-0">
+                        <h2 class="text-lg font-bold text-primary">📄 config.yaml</h2>
+                        <p class="text-xs text-gray-500 mt-0.5 truncate" :title="configYamlPath" x-text="configYamlPath || '加载中…'"></p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2 text-sm">
+                        <span x-show="configYamlDirty" class="text-xs px-2 py-0.5 rounded bg-amber-900/40 text-amber-300">● 未保存</span>
+                        <span x-show="configYamlValid === true" class="text-xs px-2 py-0.5 rounded bg-green-900/30 text-green-300">✓ 语法正确</span>
+                        <span x-show="configYamlValid === false" class="text-xs px-2 py-0.5 rounded bg-red-900/40 text-red-300">✗ 语法错误</span>
+                        <button @click="loadConfigYaml()" :disabled="configYamlLoading"
+                                class="px-3 py-1.5 bg-card border border-secondary rounded-lg text-gray-300 hover:text-white text-xs">↺ 重新加载</button>
+                        <button @click="validateConfigYaml()" :disabled="configYamlLoading"
+                                class="px-3 py-1.5 bg-card border border-secondary rounded-lg text-gray-300 hover:text-white text-xs">校验</button>
+                        <button @click="formatConfigYaml()" :disabled="configYamlLoading"
+                                class="px-3 py-1.5 bg-card border border-secondary rounded-lg text-gray-300 hover:text-white text-xs">格式化</button>
+                        <button @click="saveConfigYaml(false)" :disabled="configYamlSaving"
+                                class="px-3 py-1.5 bg-secondary rounded-lg text-gray-200 text-xs font-medium">💾 仅保存</button>
+                        <button @click="saveConfigYaml(true)" :disabled="configYamlSaving"
+                                class="px-3 py-1.5 bg-primary text-dark rounded-lg text-xs font-bold">✓ 保存并生效</button>
+                    </div>
+                </div>
+                <div x-show="configYamlLoading" class="p-8 text-center text-gray-500 text-sm">加载配置文件…</div>
+                <div x-show="!configYamlLoading" class="config-yaml-editor-wrap border-t border-secondary/50">
+                    <div id="config-yaml-editor"></div>
+                </div>
+                <div class="px-4 py-2 border-t border-secondary/60 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
+                    <span x-text="configYamlStatus"></span>
+                    <span>2 空格缩进 · Tab 插入空格 · ⌘/Ctrl+S 保存并生效 · 保存前自动备份 .bak</span>
+                </div>
+                <div x-show="configYamlError" class="px-4 py-2 bg-red-900/20 border-t border-red-800/40 text-xs text-red-300 font-mono whitespace-pre-wrap" x-text="configYamlError"></div>
+            </div>
+            </div>
+        </div>
+
+        <div x-show="activeTab === 'users'" class="space-y-6">
+            <div class="bg-surface rounded-xl p-6 border border-secondary">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-bold text-primary">👥 用户管理</h2>
+                    <button @click="showNewUser = !showNewUser" class="px-4 py-2 bg-primary text-dark font-bold rounded-lg hover:bg-primary/90 transition text-sm">+ 新建用户</button>
+                </div>
+                <div x-show="showNewUser" class="mb-6 bg-card rounded-lg p-4 border border-secondary">
+                    <div class="grid grid-cols-3 gap-3 items-end">
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">用户名</label>
+                            <input type="text" x-model="newUser.username" placeholder="username"
+                                   class="w-full bg-dark border border-secondary rounded px-3 py-2 text-sm focus:border-primary focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">密码</label>
+                            <input type="password" x-model="newUser.password" placeholder="password"
+                                   class="w-full bg-dark border border-secondary rounded px-3 py-2 text-sm focus:border-primary focus:outline-none">
+                        </div>
+                        <div class="flex gap-2">
+                            <label class="flex items-center gap-2 text-sm text-gray-400">
+                                <input type="checkbox" x-model="newUser.is_admin" class="rounded"> 管理员
+                            </label>
+                            <button @click="createUser()" class="px-3 py-2 bg-primary text-dark rounded text-sm font-bold">创建</button>
+                        </div>
+                    </div>
+                    <div x-show="newUser.error" class="text-red-400 text-sm mt-2" x-text="newUser.error"></div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="text-gray-400 border-b border-secondary">
+                                <th class="text-left py-2 px-3">ID</th>
+                                <th class="text-left py-2 px-3">用户名</th>
+                                <th class="text-left py-2 px-3">角色</th>
+                                <th class="text-left py-2 px-3">创建时间</th>
+                                <th class="text-right py-2 px-3">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="u in users" :key="u.id">
+                                <tr class="border-b border-secondary/50 hover:bg-secondary/20">
+                                    <td class="py-2 px-3 text-gray-500" x-text="u.id"></td>
+                                    <td class="py-2 px-3" x-text="u.username"></td>
+                                    <td class="py-2 px-3">
+                                        <span class="px-2 py-0.5 rounded text-xs" :class="u.is_admin ? 'bg-primary/20 text-primary' : 'bg-secondary text-gray-400'"
+                                              x-text="u.is_admin ? '管理员' : '用户'"></span>
+                                    </td>
+                                    <td class="py-2 px-3 text-gray-500 text-xs" x-text="u.created_at || '-'"></td>
+                                    <td class="py-2 px-3 text-right">
+                                        <button @click="toggleAdmin(u)" x-show="u.id !== user?.id"
+                                                class="text-xs text-gray-400 hover:text-primary mr-2"
+                                                x-text="u.is_admin ? '撤销管理员' : '设为管理员'"></button>
+                                        <button @click="deleteUser(u)" x-show="u.id !== user?.id"
+                                                class="text-xs text-red-400 hover:text-red-300">删除</button>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div x-show="activeTab === 'models'" class="space-y-4">
+            <!-- Sub tabs -->
+            <div class="flex gap-1 flex-wrap border-b border-secondary pb-2">
+                <button @click="modelSubTab='guide'" :class="modelSubTab==='guide' ? 'bg-secondary text-primary' : 'text-gray-400'" class="px-3 py-1.5 rounded-lg text-sm">📖 分类说明</button>
+                <button @click="modelSubTab='experts'; loadExperts()" :class="modelSubTab==='experts' ? 'bg-secondary text-primary' : 'text-gray-400'" class="px-3 py-1.5 rounded-lg text-sm">🎯 专家路由</button>
+                <button @click="modelSubTab='paths'" :class="modelSubTab==='paths' ? 'bg-secondary text-primary' : 'text-gray-400'" class="px-3 py-1.5 rounded-lg text-sm">📁 路径 & 路由</button>
+                <button @click="modelSubTab='local'; loadInstalled()" :class="modelSubTab==='local' ? 'bg-secondary text-primary' : 'text-gray-400'" class="px-3 py-1.5 rounded-lg text-sm">💾 本地模型库</button>
+                <button @click="modelSubTab='cloud'" :class="modelSubTab==='cloud' ? 'bg-secondary text-primary' : 'text-gray-400'" class="px-3 py-1.5 rounded-lg text-sm">☁️ 云端 Provider</button>
+                <button @click="modelSubTab='active'; loadModels()" :class="modelSubTab==='active' ? 'bg-secondary text-primary' : 'text-gray-400'" class="px-3 py-1.5 rounded-lg text-sm">✅ 已配置</button>
+            </div>
+
+            <!-- Classification guide -->
+            <div x-show="modelSubTab==='guide'" class="space-y-4">
+                <div class="bg-surface rounded-xl p-5 border border-secondary">
+                    <h3 class="font-bold text-primary mb-2">两层分类，别混为一谈</h3>
+                    <p class="text-sm text-gray-400 mb-4">CoolClaw 先选<strong class="text-gray-200">专家</strong>（干什么活），再按<strong class="text-gray-200">模型 role</strong>（哪类模型来干）从池里挑具体模型。</p>
+                    <div class="grid md:grid-cols-2 gap-4 text-sm">
+                        <div class="bg-card rounded-lg p-4 border border-secondary/60">
+                            <div class="text-primary font-medium mb-2">① 专家（Expert）— 任务分工</div>
+                            <p class="text-gray-400 text-xs mb-2">build / chat / explore / oracle / ocr / vision …</p>
+                            <ul class="text-xs text-gray-500 space-y-1 list-disc list-inside">
+                                <li>由 OMO 能力路由 + <code class="text-gray-400">src/experts.py</code> 定义</li>
+                                <li><strong class="text-gray-300">不在 config.yaml 里列专家表</strong></li>
+                                <li>可在「专家路由」页绑定 Provider 偏好</li>
+                            </ul>
+                        </div>
+                        <div class="bg-card rounded-lg p-4 border border-secondary/60">
+                            <div class="text-primary font-medium mb-2">② 模型 role — 能力标签</div>
+                            <p class="text-gray-400 text-xs mb-2">coding / general / fast / thinking / ocr / vision / documents</p>
+                            <ul class="text-xs text-gray-500 space-y-1 list-disc list-inside">
+                                <li><strong class="text-gray-300">本地模型：写在 config.yaml</strong></li>
+                                <li class="font-mono text-gray-400">models.local.&lt;名&gt;.role: coding</li>
+                                <li>云端：按模型名自动推断，或加 <code class="text-gray-400">roles:</code> 手动指定</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-surface rounded-xl p-5 border border-secondary">
+                    <h3 class="font-bold text-primary mb-2">config.yaml 里你能看到的 role</h3>
+                    <pre class="text-xs bg-card rounded-lg p-4 border border-secondary/60 text-gray-300 overflow-x-auto font-mono leading-relaxed">models:
+  local:
+    qwen2_5_3b:
+      path: /path/to/model.gguf
+      role: fast          # 轻量 / 调度
+    qwen2_5_coder_7b:
+      path: ...
+      role: coding        # 编程专家用
+    lightonocr_2_1b:
+      path: ...
+      role: ocr           # 建议 OCR 模型用 ocr，不要用 general
+
+proxy:
+  providers:
+    google_ai:
+      model: gemini-3.5-flash-lite
+      roles:              # 可选，不写则按模型名自动推断
+        - general
+        - coding
+        - fast</pre>
+                    <p class="text-xs text-gray-500 mt-3">「启用此模型」按钮会把本地 GGUF 的 <code class="text-gray-400">role</code> 写入上述位置。云端 Provider 在「云端 Provider」页配置后写入 <code class="text-gray-400">proxy.providers</code>。</p>
+                </div>
+                <div class="bg-surface rounded-xl p-5 border border-secondary">
+                    <h3 class="font-bold text-primary mb-2">对应关系（简表）</h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-xs text-left">
+                            <thead class="text-gray-500 border-b border-secondary">
+                                <tr><th class="py-2 pr-4">专家</th><th class="py-2 pr-4">需要的 role</th><th class="py-2">典型模型</th></tr>
+                            </thead>
+                            <tbody class="text-gray-400 divide-y divide-secondary/40">
+                                <tr><td class="py-2">🔨 build / explore</td><td>coding</td><td>Qwen2.5-Coder-7B、云端 code 模型</td></tr>
+                                <tr><td class="py-2">💬 chat / quick</td><td>general, fast</td><td>Gemini Flash、Gemma free</td></tr>
+                                <tr><td class="py-2">🧠 oracle</td><td>thinking</td><td>Pro / 大参数量模型</td></tr>
+                                <tr><td class="py-2">📷 ocr / vision</td><td>ocr, vision</td><td>LightOnOCR、Gemini 多模态</td></tr>
+                                <tr><td class="py-2">🎯 路由（历史 3B）</td><td>fast</td><td>Qwen2.5-3B（现多为 OMO 规则路由）</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Expert roster -->
+            <div x-show="modelSubTab==='experts'" class="space-y-4">
+                <div class="bg-surface rounded-xl p-5 border border-secondary">
+                    <div class="flex items-center justify-between mb-2">
+                        <div>
+                            <h3 class="font-bold text-primary">🎯 专家编制</h3>
+                            <p class="text-xs text-gray-500 mt-1">借鉴 OpenCode 多 Agent + OMO 能力路由：Dispatcher 先选专家，模型池再按 role 选模型。</p>
+                        </div>
+                        <button @click="loadExperts()" class="text-xs text-primary hover:underline">刷新</button>
+                        <button @click="saveExpertBindings()" class="text-xs px-2 py-1 bg-primary text-dark rounded font-medium">保存绑定</button>
+                    </div>
+                    <div class="grid md:grid-cols-2 gap-3">
+                        <template x-for="e in experts" :key="e.id">
+                            <div class="bg-card rounded-lg p-4 border transition"
+                                 :class="e.ready ? 'border-green-600/40' : 'border-secondary/60'">
+                                <div class="flex items-start gap-2">
+                                    <span class="text-xl" x-text="e.icon"></span>
+                                    <div class="min-w-0 flex-1">
+                                        <div class="flex items-center gap-2 flex-wrap">
+                                            <span class="font-medium text-sm" x-text="e.name"></span>
+                                            <span class="text-xs text-gray-500" x-text="e.title"></span>
+                                            <span class="text-xs px-1.5 py-0.5 rounded"
+                                                  :class="e.ready ? 'bg-green-900/40 text-green-300' : 'bg-secondary text-gray-500'"
+                                                  x-text="e.ready ? '就绪' : '无模型'"></span>
+                                        </div>
+                                        <p class="text-xs text-gray-400 mt-1" x-text="e.description"></p>
+                                        <div class="flex gap-2 mt-2 text-xs text-gray-500 flex-wrap">
+                                            <span>role: <span class="text-gray-300" x-text="roleLabel(e.role)"></span></span>
+                                            <span>OpenCode: <span class="text-gray-300" x-text="e.opencode_analog"></span></span>
+                                            <span>OMO: <span class="text-gray-300" x-text="e.omo_capability"></span></span>
+                                        </div>
+                                        <div class="mt-2 flex items-center gap-2" x-show="cloudProviders.length">
+                                            <label class="text-xs text-gray-500 shrink-0">绑定 Provider</label>
+                                            <select class="text-xs bg-card border border-secondary rounded px-2 py-1 flex-1 min-w-0"
+                                                    :value="expertBindings[e.id] || ''"
+                                                    @change="setExpertBinding(e.id, $event.target.value)">
+                                                <option value="">自动（模型池优先级）</option>
+                                                <template x-for="p in cloudProviders" :key="p">
+                                                    <option :value="p" x-text="p" :selected="expertBindings[e.id]===p"></option>
+                                                </template>
+                                            </select>
+                                        </div>
+                                        <div class="mt-2" x-show="e.available_models?.length">
+                                            <div class="text-xs text-gray-500 mb-1">
+                                                候选模型<span x-show="e.fallback_role" class="text-amber-500/80">（回退自 role: <span x-text="roleLabel(e.fallback_role)"></span>）</span>:
+                                            </div>
+                                            <div class="flex flex-wrap gap-1">
+                                                <template x-for="(m, i) in e.available_models" :key="m.key">
+                                                    <span class="text-xs px-1.5 py-0.5 rounded border"
+                                                          :class="i===0 ? 'border-primary/40 text-primary' : 'border-secondary text-gray-500'"
+                                                          x-text="m.name"></span>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Paths & Routing -->
+            <div x-show="modelSubTab==='paths'" class="space-y-4">
+                <div class="bg-surface rounded-xl p-5 border border-secondary">
+                    <h3 class="font-bold text-primary mb-1">📁 模型存放目录</h3>
+                    <p class="text-xs text-gray-500 mb-3">下载本地 GGUF 模型前必须先设置此目录。</p>
+                    <div class="flex gap-2 max-w-2xl">
+                        <input type="text" x-model="modelsDir" placeholder="/Volumes/LynnData/myclaw_models"
+                               class="flex-1 bg-card border border-secondary rounded-lg px-3 py-2 text-sm focus:border-primary focus:outline-none">
+                        <button @click="savePaths()" class="px-4 py-2 bg-primary text-dark font-bold rounded-lg text-sm shrink-0">保存</button>
+                    </div>
+                </div>
+                <div class="bg-surface rounded-xl p-5 border border-secondary grid md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">路由模式</label>
+                        <select x-model="appConfig.routing.mode" class="w-full bg-card border border-secondary rounded-lg px-3 py-2 text-sm">
+                            <option value="auto">智能自动（推荐）</option>
+                            <option value="local_only">仅本地</option>
+                            <option value="cloud_only">仅云端</option>
+                            <option value="cloud_first">云端优先</option>
+                        </select>
+                        <p class="text-xs text-gray-500 mt-1">OMO 能力路由：规则优先，云端免费优先，本地兜底。</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">MCP Agent 模型</label>
+                        <select x-model="appConfig.mcp.agent_model" class="w-full bg-card border border-secondary rounded-lg px-3 py-2 text-sm">
+                            <option value="">自动（跟随专家路由，云端优先）</option>
+                            <template x-for="p in mcpAgentProviders" :key="p">
+                                <option :value="p" x-text="p + '（云端 Provider）'"></option>
+                            </template>
+                            <option value="local">local（本地 Coder 7B，算力有限时慎用）</option>
+                        </select>
+                        <label class="flex items-center gap-2 text-sm mt-2">
+                            <input type="checkbox" x-model="appConfig.mcp.enabled" class="rounded"> 启用 MCP 工具循环
+                        </label>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">HTTP 代理</label>
+                        <input type="text" x-model="appConfig.network.http_proxy" placeholder="http://127.0.0.1:20171"
+                               class="w-full bg-card border border-secondary rounded-lg px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">HTTPS 代理</label>
+                        <input type="text" x-model="appConfig.network.https_proxy" placeholder="http://127.0.0.1:20171"
+                               class="w-full bg-card border border-secondary rounded-lg px-3 py-2 text-sm">
+                    </div>
+                    <div class="md:col-span-2">
+                        <button @click="saveRouting()" class="px-4 py-2 bg-primary text-dark font-bold rounded-lg text-sm">💾 保存设置</button>
+                    </div>
+                </div>
+
+                <!-- Dispatcher routing status -->
+                <div class="bg-surface rounded-xl p-5 border border-secondary">
+                    <div class="flex items-center justify-between mb-3">
+                        <div>
+                            <h3 class="font-bold text-primary">🔀 Dispatcher 路由池</h3>
+                            <p class="text-xs text-gray-500 mt-1">聊天先经 Dispatcher 判断意图，再按角色从模型池选取候选；同类云端模型额度用尽时自动轮换下一个。</p>
+                        </div>
+                        <button @click="loadRoutingStatus()" class="text-xs text-primary hover:underline shrink-0">刷新</button>
+                    </div>
+                    <div class="flex flex-wrap gap-3 text-sm mb-4">
+                        <span class="px-2 py-1 bg-card rounded border border-secondary">
+                            路由模式: <strong x-text="routingStatus.routing_mode || '—'"></strong>
+                        </span>
+                        <span class="px-2 py-1 bg-card rounded border border-secondary">
+                            池内模型: <strong x-text="routingStatus.total ?? 0"></strong>
+                        </span>
+                    </div>
+                    <div x-show="!routingStatus.available_by_role || Object.keys(routingStatus.available_by_role).length === 0"
+                         class="text-sm text-gray-500 py-4 text-center">
+                        暂无可用模型。请配置本地 GGUF 或云端 Provider 后刷新。
+                    </div>
+                    <div class="space-y-3">
+                        <template x-for="role in Object.keys(routingStatus.available_by_role || {}).sort()" :key="role">
+                            <div class="bg-card rounded-lg p-3 border border-secondary/60">
+                                <div class="text-xs font-medium text-gray-400 mb-2 uppercase tracking-wide" x-text="roleLabel(role) + ' (' + role + ')'"></div>
+                                <div class="flex flex-wrap gap-2 items-center">
+                                    <template x-for="(m, idx) in routingStatus.available_by_role[role]" :key="m.key">
+                                        <span class="inline-flex items-center gap-1 text-xs px-2 py-1 rounded border"
+                                              :class="idx === 0 ? 'border-primary/50 bg-primary/10 text-primary' : 'border-secondary text-gray-400'">
+                                            <span class="opacity-50" x-text="(idx+1) + '.'"></span>
+                                            <span x-text="m.name"></span>
+                                            <span class="opacity-60" x-text="'[' + m.source + ']'"></span>
+                                        </span>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Local models -->
+            <div x-show="modelSubTab==='local'" class="space-y-4">
+                <!-- Installed models - always on top -->
+                <div class="bg-surface rounded-xl p-4 border border-secondary">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-bold text-primary">💾 本机已有模型</h3>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-gray-500" x-text="modelsDir || '未设置目录'"></span>
+                            <button @click="loadInstalled()" class="text-xs text-primary hover:underline">刷新</button>
+                        </div>
+                    </div>
+                    <div x-show="installedModels.length === 0" class="text-sm text-gray-500 py-4 text-center">
+                        未扫描到 .gguf 文件。请先在「路径 & 路由」设置模型目录并保存，然后点刷新。
+                    </div>
+                    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                        <template x-for="m in installedModels" :key="m.path">
+                            <div class="bg-card rounded-lg p-3 border transition"
+                                 :class="m.in_config ? 'border-green-600/50' : 'border-secondary/50'">
+                                <div class="flex items-start justify-between gap-2">
+                                    <div class="min-w-0 flex-1">
+                                        <div class="text-sm font-medium truncate" :title="m.filename" x-text="m.filename"></div>
+                                        <div class="text-xs text-gray-500 mt-0.5" x-text="m.size_gb + ' GB'"></div>
+                                        <div class="flex gap-1 mt-1 flex-wrap">
+                                            <span x-show="m.in_config" class="text-xs px-1.5 py-0.5 bg-green-900/40 text-green-300 rounded">已配置</span>
+                                            <span x-show="m.is_default" class="text-xs px-1.5 py-0.5 bg-primary/20 text-primary rounded">默认</span>
+                                            <span x-show="m.role" class="text-xs px-1.5 py-0.5 bg-secondary rounded text-gray-400" x-text="roleLabel(m.role)"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button x-show="!m.in_config" @click="activateLocalModel(m, '')"
+                                        class="mt-2 w-full px-2 py-1 bg-primary/10 text-primary border border-primary/30 rounded text-xs hover:bg-primary/20">
+                                    启用此模型
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <div class="grid lg:grid-cols-5 gap-4">
+                    <!-- Search panel -->
+                    <div class="lg:col-span-2 bg-surface rounded-xl border border-secondary overflow-hidden flex flex-col max-h-[60vh]">
+                        <div class="p-3 border-b border-secondary space-y-2">
+                            <div class="relative">
+                                <input type="text" x-model="localFilter" @input.debounce.500ms="searchModels()"
+                                       placeholder="搜索 HuggingFace GGUF 模型…"
+                                       class="w-full bg-card border border-secondary rounded px-3 py-2 text-sm pr-8">
+                                <span x-show="searchLoading" class="absolute right-2 top-2 text-xs text-gray-500 animate-pulse">…</span>
+                            </div>
+                            <div class="flex gap-1 flex-wrap">
+                                <button @click="localRoleFilter=''; searchModels()" :class="!localRoleFilter ? 'bg-primary text-dark' : 'bg-card text-gray-400'" class="px-2 py-0.5 rounded text-xs">全部</button>
+                                <button @click="localRoleFilter='coding'; filterLocalOnly()" :class="localRoleFilter==='coding' ? 'bg-primary text-dark' : 'bg-card text-gray-400'" class="px-2 py-0.5 rounded text-xs">编程</button>
+                                <button @click="localRoleFilter='fast'; filterLocalOnly()" :class="localRoleFilter==='fast' ? 'bg-primary text-dark' : 'bg-card text-gray-400'" class="px-2 py-0.5 rounded text-xs">轻量</button>
+                                <span class="text-xs text-gray-600 self-center ml-1">推荐 / HF 搜索</span>
+                            </div>
+                        </div>
+                        <div class="flex-1 overflow-y-auto p-2 space-y-1">
+                            <!-- HF search results -->
+                            <template x-if="hfSearchResults.length > 0">
+                                <div>
+                                    <div class="text-xs text-gray-500 px-2 py-1">HuggingFace 搜索结果</div>
+                                    <template x-for="r in hfSearchResults" :key="r.repo_id">
+                                        <button @click="selectHfModel(r)"
+                                                class="w-full text-left p-3 rounded-lg border transition mb-1"
+                                                :class="selectedHfModel?.repo_id === r.repo_id ? 'border-primary bg-primary/10' : 'border-transparent hover:bg-card'">
+                                            <div class="font-medium text-sm truncate" x-text="r.repo_id"></div>
+                                            <div class="text-xs text-gray-500 mt-0.5" x-text="(r.downloads||0).toLocaleString() + ' 下载'"></div>
+                                            <div class="text-xs text-gray-600 mt-0.5" x-text="r.gguf_files?.length + ' 个 GGUF 文件'"></div>
+                                        </button>
+                                    </template>
+                                </div>
+                            </template>
+                            <!-- Curated catalog -->
+                            <div class="text-xs text-gray-500 px-2 py-1" x-text="localFilter ? '推荐模型' : '推荐模型库'"></div>
+                            <template x-for="m in filteredLocalCatalog()" :key="m.id">
+                                <button @click="selectLocalModel(m)"
+                                        class="w-full text-left p-3 rounded-lg border transition"
+                                        :class="selectedLocalModel?.id === m.id ? 'border-primary bg-primary/10' : 'border-transparent hover:bg-card'">
+                                    <div class="font-medium text-sm" x-text="m.name"></div>
+                                    <div class="text-xs text-gray-500 mt-0.5 line-clamp-2" x-text="m.description"></div>
+                                    <div class="flex gap-1 mt-1.5 flex-wrap">
+                                        <span class="text-xs px-1.5 py-0.5 bg-secondary rounded" x-text="roleLabel(m.role)"></span>
+                                        <span class="text-xs text-gray-600" x-text="'≥' + m.min_ram_gb + 'GB RAM'"></span>
+                                    </div>
+                                </button>
+                            </template>
+                            <div x-show="!searchLoading && localFilter && filteredLocalCatalog().length===0 && hfSearchResults.length===0"
+                                 class="text-center text-gray-500 text-xs py-4">未找到匹配模型，换个关键词试试</div>
+                        </div>
+                    </div>
+
+                    <!-- Detail panel -->
+                    <div class="lg:col-span-3 space-y-4">
+                        <!-- HF model detail -->
+                        <template x-if="selectedHfModel">
+                            <div class="bg-surface rounded-xl p-5 border border-secondary">
+                                <h3 class="font-bold text-sm font-mono" x-text="selectedHfModel.repo_id"></h3>
+                                <a :href="'https://huggingface.co/' + selectedHfModel.repo_id" target="_blank"
+                                   class="text-xs text-primary hover:underline">在 HuggingFace 查看 →</a>
+                                <div class="mt-3 space-y-1 max-h-48 overflow-y-auto">
+                                    <template x-for="f in selectedHfModel.gguf_files" :key="f.filename">
+                                        <div class="flex items-center justify-between p-2 bg-card rounded text-xs">
+                                            <span class="truncate flex-1 font-mono" x-text="f.filename"></span>
+                                            <span class="text-gray-500 mx-2 shrink-0" x-text="f.size_gb + 'GB'"></span>
+                                            <button @click="downloadHfFile(selectedHfModel.repo_id, f.path || f.filename)"
+                                                    class="shrink-0 px-2 py-1 bg-primary text-dark font-bold rounded">下载</button>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                        <!-- Catalog model detail -->
+                        <template x-if="selectedLocalModel && !selectedHfModel">
+                            <div class="bg-surface rounded-xl p-5 border border-secondary">
+                                <h3 class="font-bold text-lg" x-text="selectedLocalModel.name"></h3>
+                                <p class="text-sm text-gray-400 mt-1" x-text="selectedLocalModel.description"></p>
+                                <div class="mt-3 text-xs text-gray-500" x-text="'HF: ' + selectedLocalModel.huggingface_repo"></div>
+                                <div class="mt-4 flex gap-2 flex-wrap">
+                                    <template x-for="v in selectedLocalModel.variants" :key="v.quant">
+                                        <button @click="selectedQuant = v.quant"
+                                                class="px-3 py-1.5 rounded-lg text-sm border transition"
+                                                :class="selectedQuant === v.quant ? 'border-primary bg-primary/10 text-primary' : 'border-secondary text-gray-400'">
+                                            <span x-text="v.quant"></span> <span class="text-xs" x-text="v.size_gb+'GB'"></span>
+                                        </button>
+                                    </template>
+                                </div>
+                                <button @click="downloadModel()" :disabled="!modelsDir"
+                                        class="mt-4 px-5 py-2 bg-primary text-dark font-bold rounded-lg text-sm disabled:opacity-40">
+                                    ⬇️ 下载到模型目录
+                                </button>
+                            </div>
+                        </template>
+                        <template x-if="!selectedLocalModel && !selectedHfModel">
+                            <div class="bg-surface rounded-xl p-8 border border-secondary text-center text-gray-500 text-sm">
+                                搜索 HuggingFace 或从左侧选择推荐模型
+                            </div>
+                        </template>
+
+                        <!-- Download progress -->
+                        <div x-show="downloadTasks.length > 0" class="bg-surface rounded-xl p-4 border border-secondary">
+                            <h4 class="text-sm font-bold text-primary mb-2">下载任务</h4>
+                            <template x-for="t in downloadTasks.slice(0,5)" :key="t.id">
+                                <div class="mb-2 text-xs">
+                                    <div class="flex justify-between mb-1">
+                                        <span class="truncate" x-text="t.filename"></span>
+                                        <span x-text="t.status + (t.progress ? ' '+t.progress+'%' : '')"></span>
+                                    </div>
+                                    <div class="h-1.5 bg-card rounded overflow-hidden" x-show="t.status==='downloading'">
+                                        <div class="h-full bg-primary transition-all" :style="'width:'+t.progress+'%'"></div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cloud providers -->
+            <div x-show="modelSubTab==='cloud'" class="grid lg:grid-cols-3 gap-4">
+                <div class="lg:col-span-1 space-y-2 max-h-[70vh] overflow-y-auto">
+                    <div class="flex gap-1 mb-2">
+                        <button @click="cloudRegionFilter=''" :class="!cloudRegionFilter?'bg-primary text-dark':'bg-card'" class="px-2 py-0.5 rounded text-xs">全部</button>
+                        <button @click="cloudRegionFilter='cn'" :class="cloudRegionFilter==='cn'?'bg-primary text-dark':'bg-card'" class="px-2 py-0.5 rounded text-xs">国内</button>
+                        <button @click="cloudRegionFilter='intl'" :class="cloudRegionFilter==='intl'?'bg-primary text-dark':'bg-card'" class="px-2 py-0.5 rounded text-xs">国际</button>
+                    </div>
+                    <template x-for="p in filteredCloudCatalog()" :key="p.id">
+                        <button @click="selectProvider(p)"
+                                class="w-full text-left p-3 rounded-xl border transition"
+                                :class="selectedProvider?.id===p.id ? 'border-primary bg-primary/10' : 'border-secondary bg-surface hover:border-primary/30'">
+                            <div class="flex items-center justify-between">
+                                <span class="font-medium text-sm" x-text="p.name"></span>
+                                <span class="text-xs px-1.5 py-0.5 rounded" :class="p.region==='cn'?'bg-red-900/40 text-red-300':'bg-blue-900/40 text-blue-300'" x-text="regionLabel(p.region)"></span>
+                            </div>
+                            <div class="text-xs text-green-400 mt-1" x-text="p.free_tier"></div>
+                        </button>
+                    </template>
+                </div>
+                <div class="lg:col-span-2">
+                    <template x-if="selectedProvider">
+                        <div class="bg-surface rounded-xl p-5 border border-secondary">
+                            <h3 class="font-bold text-lg" x-text="selectedProvider.name"></h3>
+                            <p class="text-sm text-gray-400 mt-1" x-text="selectedProvider.description"></p>
+                            <a :href="selectedProvider.signup_url" target="_blank" class="text-xs text-primary hover:underline mt-1 inline-block">获取 API Key →</a>
+                            <div class="mt-4 space-y-3 max-w-lg">
+                                <div>
+                                    <label class="text-xs text-gray-400">API Key</label>
+                                    <input type="password" x-model="cloudSetup.api_key" :placeholder="selectedProvider.api_key_hint"
+                                           class="w-full mt-1 bg-card border border-secondary rounded-lg px-3 py-2 text-sm">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-400">选择模型</label>
+                                    <select x-model="cloudSetup.model_id" class="w-full mt-1 bg-card border border-secondary rounded-lg px-3 py-2 text-sm">
+                                        <template x-for="m in selectedProvider.models" :key="m.id">
+                                            <option :value="m.id" x-text="m.name + ' — ' + m.free_quota + (m.recommended ? ' ★' : '')"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                                <label class="flex items-center gap-2 text-sm text-gray-400">
+                                    <input type="checkbox" x-model="cloudSetup.set_default" class="rounded"> 设为默认云端 Provider
+                                </label>
+                                <button @click="setupCloudProvider()" class="px-5 py-2.5 bg-primary text-dark font-bold rounded-lg text-sm">保存并注册 Provider</button>
+                            </div>
+                        </div>
+                    </template>
+                    <template x-if="!selectedProvider">
+                        <div class="bg-surface rounded-xl p-8 border border-secondary text-center text-gray-500 text-sm">← 选择云端 Provider 进行配置</div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Active configs (existing table) -->
+            <div x-show="modelSubTab==='active'" class="bg-surface rounded-xl p-5 border border-secondary">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="font-bold text-primary">已注册模型</h3>
+                    <button @click="showModelForm = !showModelForm" class="px-3 py-1.5 bg-primary text-dark font-bold rounded-lg text-xs">+ 手动添加</button>
+                </div>
+                <div x-show="showModelForm" class="mb-4 bg-card rounded-lg p-4 border border-secondary">
+                    <div class="grid grid-cols-2 gap-3 items-end">
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">提供商类型</label>
+                            <select x-model="editingModel.provider_type" class="w-full bg-dark border border-secondary rounded px-3 py-2 text-sm">
+                                <option value="openai">OpenAI 兼容</option>
+                                <option value="google_ai">Google AI</option>
+                                <option value="openrouter">OpenRouter</option>
+                                <option value="local">本地模型</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">模型名称 *</label>
+                            <input type="text" x-model="editingModel.model_name" class="w-full bg-dark border border-secondary rounded px-3 py-2 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">API Key</label>
+                            <input type="password" x-model="editingModel.api_key" class="w-full bg-dark border border-secondary rounded px-3 py-2 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Base URL</label>
+                            <input type="text" x-model="editingModel.base_url" class="w-full bg-dark border border-secondary rounded px-3 py-2 text-sm">
+                        </div>
+                        <div class="col-span-2 flex gap-2">
+                            <button @click="saveModel()" class="px-4 py-2 bg-primary text-dark font-bold rounded-lg text-sm">保存</button>
+                            <button @click="resetModelForm()" class="px-4 py-2 bg-secondary text-gray-300 rounded-lg text-sm">取消</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="text-gray-400 border-b border-secondary text-xs">
+                                <th class="text-left py-2 px-2">状态</th>
+                                <th class="text-left py-2 px-2">名称</th>
+                                <th class="text-left py-2 px-2">模型</th>
+                                <th class="text-left py-2 px-2">类型</th>
+                                <th class="text-left py-2 px-2">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="m in modelConfigs" :key="m.id">
+                                <tr class="border-b border-secondary/30 hover:bg-secondary/10">
+                                    <td class="py-2 px-2"><span class="w-2 h-2 rounded-full inline-block" :class="m.is_active?'bg-green-500':'bg-gray-500'"></span></td>
+                                    <td class="py-2 px-2" x-text="m.display_name||'-'"></td>
+                                    <td class="py-2 px-2 font-mono text-xs text-gray-400 max-w-[200px] truncate" x-text="m.model_name"></td>
+                                    <td class="py-2 px-2 text-xs" x-text="m.provider_type"></td>
+                                    <td class="py-2 px-2">
+                                        <button @click="editModel(m)" class="px-2 py-0.5 bg-secondary rounded text-xs mr-1">编辑</button>
+                                        <button @click="testModel(m.id)" class="px-2 py-0.5 bg-blue-600 rounded text-xs mr-1">测试</button>
+                                        <button @click="deleteModel(m.id)" class="px-2 py-0.5 bg-red-600 rounded text-xs">删</button>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                    <div x-show="modelConfigs.length===0" class="text-center text-gray-500 py-6 text-sm">暂无配置，请从本地模型库或云端 Provider 添加</div>
+                </div>
+            </div>
+        </div>
+
+        <div x-show="activeTab === 'about'" class="space-y-6">
+            <div class="bg-surface rounded-xl p-6 border border-secondary">
+                <h2 class="text-lg font-bold text-primary mb-4">ℹ️ 关于</h2>
+                <div class="space-y-2 text-gray-400">
+                    <p><strong class="text-white">CoolClaw</strong> - 本地 AI Agent 平台</p>
+                    <p>版本: 0.2.0</p>
+                    <p>技术栈: Python FastAPI + HTMX + Alpine.js + TailwindCSS</p>
+                    <p>AI 引擎: llama.cpp + Gemini API</p>
+                    <p>MCP 工具: 31 个</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="fixed bottom-4 right-4 space-y-2" x-data="{ toasts: [] }" @toast.window="toasts.push($event.detail); setTimeout(() => toasts.shift(), 3000)">
+        <template x-for="(t, i) in toasts" :key="i">
+            <div class="px-4 py-3 rounded-lg shadow-lg"
+                 :class="t.type === 'error' ? 'bg-red-500 text-white' : 'bg-primary text-dark'">
+                <span x-text="t.message"></span>
+            </div>
+        </template>
+    </div>
+
+    <script>
+        function settingsComponent() {
+            return {
+                activeTab: 'profile',
+                user: null,
+                userMenuOpen: false,
+                settings: {},
+                prefs: { theme: 'dark', language: 'zh-CN', preferred_model: 'auto', stream: true },
+                users: [],
+                showNewUser: false,
+                newUser: { username: '', password: '', is_admin: false, error: '' },
+                prefStatus: '',
+                modelConfigs: [],
+                showModelForm: false,
+                editingModel: { provider_type: 'openai', model_name: '', display_name: '', api_key: '', base_url: '', role: 'general', priority: 10, rpd: 0, rpm: 0, tpm: 0, is_active: true, extra_config: {} },
+
+                // Models admin (from ModelsAdmin)
+                modelSubTab: 'guide',
+                appConfig: { routing: {}, mcp: {}, network: {}, paths: {} },
+                configSections: [],
+                localCatalog: [],
+                cloudCatalog: [],
+                installedModels: [],
+                modelsDir: '',
+                downloadTasks: [],
+                downloadPollTimer: null,
+                localFilter: '',
+                localRoleFilter: '',
+                cloudRegionFilter: '',
+                selectedLocalModel: null,
+                selectedQuant: '',
+                selectedProvider: null,
+                selectedHfModel: null,
+                hfSearchResults: [],
+                searchLoading: false,
+                cloudSetup: { api_key: '', model_id: '', set_default: true },
+                routingStatus: { available_by_role: {} },
+                experts: [],
+                expertBindings: {},
+                cloudProviders: [],
+                mcpAgentProviders: [],
+
+                configYamlPath: '',
+                configYamlStatus: '',
+                configYamlError: '',
+                configYamlDirty: false,
+                configYamlValid: null,
+                configYamlLoading: false,
+                configYamlSaving: false,
+                configYamlEditorReady: false,
+                systemAdvanced: false,
+                configLoading: false,
+
+                async init() {
+                    try {
+                        const meRes = await fetch('/api/auth/me');
+                        if (!meRes.ok) { window.location.href = '/login.html'; return; }
+                        this.user = await meRes.json();
+                    } catch (e) { window.location.href = '/login.html'; return; }
+
+                    await Promise.all([this.loadSettings(), this.loadPrefs()]);
+                    if (this.user.is_admin) await this.loadUsers();
+
+                    window.addEventListener('config-yaml-save', (e) => {
+                        this.saveConfigYaml(e.detail?.reload !== false);
+                    });
+                },
+
+                async logout() {
+                    await fetch('/api/auth/logout', { method: 'POST' });
+                    window.location.href = '/login.html';
+                },
+
+                openSystemTab() {
+                    this.activeTab = 'system';
+                    this.systemAdvanced = false;
+                    this.loadAppConfig();
+                },
+
+                enableAdvancedConfig() {
+                    this.systemAdvanced = true;
+                    this.$nextTick(() => this.loadConfigYaml());
+                },
+
+                visibleConfigSections() {
+                    return (this.configSections || [])
+                        .filter(s => !s.advanced)
+                        .map(s => ({
+                            ...s,
+                            fields: (s.fields || []).filter(f => f.simple !== false && f.type !== 'json'),
+                        }))
+                        .filter(s => s.fields.length > 0);
+                },
+
+                getCfg(dotted) {
+                    const parts = (dotted || '').split('.');
+                    let cur = this.appConfig;
+                    for (const p of parts) {
+                        if (cur == null || typeof cur !== 'object') return '';
+                        cur = cur[p];
+                    }
+                    return cur ?? '';
+                },
+
+                setCfg(dotted, value) {
+                    const parts = (dotted || '').split('.');
+                    let cur = this.appConfig;
+                    for (let i = 0; i < parts.length - 1; i++) {
+                        if (!cur[parts[i]] || typeof cur[parts[i]] !== 'object') cur[parts[i]] = {};
+                        cur = cur[parts[i]];
+                    }
+                    cur[parts[parts.length - 1]] = value;
+                    if (dotted === 'paths.models_dir') this.modelsDir = value;
+                },
+
+                fieldOptions(field) {
+                    if (field.dynamic_options === 'mcp_providers') {
+                        const base = (field.options || []).filter(o => {
+                            const v = typeof o === 'object' ? o.value : o;
+                            return v === '' || v === 'local';
+                        });
+                        const dynamic = (this.mcpAgentProviders || []).map(p => ({
+                            value: p,
+                            label: p + '（云端 Provider）',
+                        }));
+                        return [...base, ...dynamic];
+                    }
+                    return field.options || [];
+                },
+
+                selectedOptionHint(field) {
+                    const val = this.getCfg(field.key);
+                    const opts = this.fieldOptions(field);
+                    const match = opts.find(o => (typeof o === 'object' ? o.value : o) === val);
+                    return match && typeof match === 'object' ? (match.hint || field.hint || '') : (field.hint || '');
+                },
+
+                async saveConfigSection(section) {
+                    const partial = {};
+                    for (const field of section.fields || []) {
+                        if (field.type === 'json') continue;
+                        const parts = field.key.split('.');
+                        let target = partial;
+                        for (let i = 0; i < parts.length - 1; i++) {
+                            target = target[parts[i]] = target[parts[i]] || {};
+                        }
+                        target[parts[parts.length - 1]] = this.getCfg(field.key);
+                    }
+                    try {
+                        await this.saveAppConfig(partial);
+                        this.toast(`「${section.title}」已保存`, 'success');
+                        if (section.id === 'paths') await this.loadInstalled();
+                    } catch (e) {
+                        this.toast(e.message, 'error');
+                    }
+                },
+
+                ensureConfigEditor() {
+                    if (this.configYamlEditorReady) {
+                        CoolClawConfigEditor.refresh();
+                        return;
+                    }
+                    CoolClawConfigEditor.init('config-yaml-editor', {
+                        onDirty: (dirty) => { this.configYamlDirty = dirty; },
+                    });
+                    this.configYamlEditorReady = true;
+                    this.$nextTick(() => CoolClawConfigEditor.refresh());
+                },
+
+                async loadConfigYaml() {
+                    if (!this.user?.is_admin) return;
+                    this.configYamlLoading = true;
+                    this.configYamlError = '';
+                    try {
+                        const res = await fetch('/api/admin/config/yaml');
+                        if (!res.ok) throw new Error('无法加载 config.yaml');
+                        const d = await res.json();
+                        this.configYamlPath = d.path || '';
+                        this.configYamlLoading = false;
+                        this.$nextTick(() => {
+                            this.ensureConfigEditor();
+                            CoolClawConfigEditor.setValue(d.content || '');
+                            this.configYamlDirty = false;
+                            this.configYamlValid = null;
+                            this.configYamlStatus = `${d.size || 0} 字节` + (d.exists ? ' · 备份: config.yaml.bak' : '');
+                        });
+                    } catch (e) {
+                        this.configYamlLoading = false;
+                        this.configYamlError = e.message;
+                    }
+                },
+
+                async validateConfigYaml() {
+                    const content = CoolClawConfigEditor.getValue();
+                    this.configYamlError = '';
+                    try {
+                        const res = await fetch('/api/admin/config/yaml/validate', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ content }),
+                        });
+                        const d = await res.json();
+                        this.configYamlValid = d.valid;
+                        if (d.valid) {
+                            this.configYamlStatus = `✓ 语法正确 · 顶层键: ${(d.top_level_keys || []).join(', ')}`;
+                            this.toast('YAML 语法正确', 'success');
+                        } else {
+                            this.configYamlError = d.error || '语法错误';
+                            this.toast('YAML 语法错误', 'error');
+                        }
+                    } catch (e) {
+                        this.configYamlError = e.message;
+                    }
+                },
+
+                async formatConfigYaml() {
+                    const content = CoolClawConfigEditor.getValue();
+                    try {
+                        const res = await fetch('/api/admin/config/yaml/format', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ content }),
+                        });
+                        if (!res.ok) {
+                            const err = await res.json();
+                            throw new Error(err.detail || '格式化失败');
+                        }
+                        const d = await res.json();
+                        CoolClawConfigEditor.setValue(d.content || '');
+                        this.configYamlDirty = true;
+                        this.configYamlValid = true;
+                        this.configYamlStatus = '已格式化（尽量保留注释）';
+                        this.toast('已格式化', 'success');
+                    } catch (e) {
+                        this.toast(e.message, 'error');
+                    }
+                },
+
+                async saveConfigYaml(reload = false) {
+                    if (this.configYamlSaving) return;
+                    const content = CoolClawConfigEditor.getValue();
+                    this.configYamlSaving = true;
+                    this.configYamlError = '';
+                    try {
+                        const res = await fetch('/api/admin/config/yaml', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ content, reload }),
+                        });
+                        const d = await res.json();
+                        if (!res.ok) throw new Error(d.detail || d.error || '保存失败');
+                        this.configYamlDirty = false;
+                        this.configYamlValid = true;
+                        const mode = d.reload?.routing_mode || '';
+                        this.configYamlStatus = `已保存 · ${d.size || 0} 字节` +
+                            (d.backup_path ? ' · 已备份' : '') +
+                            (reload && d.reload ? ` · 已热加载 (${mode}, 池内 ${d.reload.pool_size} 模型)` : '');
+                        if (reload && d.reload?.reloaded) {
+                            this.toast(`配置已生效 · 路由模式: ${mode}`, 'success');
+                        } else {
+                            this.toast('config.yaml 已保存（未热加载）', 'success');
+                        }
+                    } catch (e) {
+                        this.configYamlError = e.message;
+                        this.toast(e.message, 'error');
+                    } finally {
+                        this.configYamlSaving = false;
+                    }
+                },
+
+                async loadSettings() {
+                    try {
+                        if (!this.user?.is_admin) return;
+                        const res = await fetch('/api/admin/settings');
+                        const data = await res.json();
+                        const s = data.settings || {};
+                        this.settings = {};
+                        s.forEach(item => { this.settings[item.key] = item.value; });
+                    } catch (e) {}
+                },
+
+                async saveSetting(key, value) {
+                    try {
+                        const res = await fetch('/api/admin/settings', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ key, value: String(value) })
+                        });
+                        if (res.ok) {
+                            this.toast('已保存: ' + key, 'success');
+                        } else {
+                            const d = await res.json();
+                            this.toast(d.detail || '保存失败', 'error');
+                        }
+                    } catch (e) {
+                        this.toast('保存失败: ' + e.message, 'error');
+                    }
+                },
+
+                async loadPrefs() {
+                    try {
+                        const res = await fetch('/api/user/preferences');
+                        const data = await res.json();
+                        const p = data.preferences || {};
+                        p.forEach(item => {
+                            if (item.key in this.prefs) {
+                                let v = item.value;
+                                if (v === 'true') v = true;
+                                else if (v === 'false') v = false;
+                                this.prefs[item.key] = v;
+                            }
+                        });
+                    } catch (e) {}
+                },
+
+                async savePref(key, value) {
+                    try {
+                        await fetch('/api/user/preferences', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ key, value: String(value) })
+                        });
+                        this.prefStatus = '已保存';
+                        setTimeout(() => this.prefStatus = '', 2000);
+                    } catch (e) {
+                        this.prefStatus = '保存失败';
+                    }
+                },
+
+                async loadUsers() {
+                    try {
+                        const res = await fetch('/api/admin/users');
+                        const data = await res.json();
+                        this.users = data.users || [];
+                    } catch (e) {}
+                },
+
+                async createUser() {
+                    this.newUser.error = '';
+                    if (!this.newUser.username || !this.newUser.password) {
+                        this.newUser.error = '请填写用户名和密码';
+                        return;
+                    }
+                    try {
+                        const res = await fetch('/api/admin/users', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                username: this.newUser.username,
+                                password: this.newUser.password,
+                                is_admin: this.newUser.is_admin
+                            })
+                        });
+                        if (res.ok) {
+                            this.newUser = { username: '', password: '', is_admin: false, error: '' };
+                            this.showNewUser = false;
+                            await this.loadUsers();
+                            this.toast('用户已创建', 'success');
+                        } else {
+                            const d = await res.json();
+                            this.newUser.error = d.detail || '创建失败';
+                        }
+                    } catch (e) {
+                        this.newUser.error = '创建失败: ' + e.message;
+                    }
+                },
+
+                async toggleAdmin(u) {
+                    try {
+                        await fetch('/api/admin/users/' + u.id, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ is_admin: !u.is_admin })
+                        });
+                        await this.loadUsers();
+                    } catch (e) {}
+                },
+
+                async deleteUser(u) {
+                    if (!confirm('确定要删除用户 ' + u.username + ' 吗？')) return;
+                    try {
+                        const res = await fetch('/api/admin/users/' + u.id, { method: 'DELETE' });
+                        if (res.ok) {
+                            await this.loadUsers();
+                            this.toast('用户已删除', 'success');
+                        } else {
+                            const d = await res.json();
+                            this.toast(d.detail || '删除失败', 'error');
+                        }
+                    } catch (e) {
+                        this.toast('删除失败: ' + e.message, 'error');
+                    }
+                },
+
+                async loadModels() {
+                    try {
+                        const res = await fetch('/api/admin/models');
+                        const data = await res.json();
+                        this.modelConfigs = data.models || [];
+                    } catch (e) {}
+                },
+
+                async loadAllModels() {
+                    await Promise.all([
+                        this.loadAppConfig(),
+                        this.loadLocalCatalog(),
+                        this.loadCloudCatalog(),
+                        this.loadInstalled(),
+                        this.loadDownloads(),
+                        this.loadModels(),
+                    ]);
+                    await this.loadRoutingStatus();
+                    await this.loadExperts();
+                },
+                async loadAppConfig() {
+                    this.configLoading = true;
+                    try {
+                    const res = await fetch('/api/admin/config');
+                    const d = await res.json();
+                    const c = d.config || {};
+                    this.appConfig = {
+                        routing: { mode: 'auto', auto_threshold_tokens: 2000, local_timeout: 300, cloud_timeout: 60, ...(c.routing || {}) },
+                        mcp: { enabled: false, max_rounds: 5, agent_model: '', ...(c.mcp || {}) },
+                        network: { http_proxy: '', https_proxy: '', ...(c.network || {}) },
+                        paths: { models_dir: '', cache_dir: './cache', logs_dir: './logs', ...(c.paths || {}) },
+                        proxy: c.proxy || {},
+                        logging: c.logging || { level: 'INFO' },
+                    };
+                    this.configSections = d.sections || [];
+                    this.modelsDir = this.appConfig.paths.models_dir || '';
+                    const prov = this.appConfig.proxy?.providers || {};
+                    this.mcpAgentProviders = Object.keys(prov);
+                    } finally {
+                        this.configLoading = false;
+                    }
+                },
+                async saveAppConfig(partial) {
+                    const res = await fetch('/api/admin/config', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ config: partial }),
+                    });
+                    if (!res.ok) { const d = await res.json(); throw new Error(d.detail || '保存失败'); }
+                    await this.loadAppConfig();
+                },
+                async savePaths() {
+                    try {
+                        await this.saveAppConfig({ paths: { models_dir: this.modelsDir, cache_dir: this.appConfig?.paths?.cache_dir, logs_dir: this.appConfig?.paths?.logs_dir } });
+                        this.toast('路径已保存', 'success');
+                        await this.loadInstalled();
+                    } catch (e) { this.toast(e.message, 'error'); }
+                },
+                async saveRouting() {
+                    try {
+                        await this.saveAppConfig({ routing: this.appConfig.routing, mcp: this.appConfig.mcp, network: this.appConfig.network });
+                        this.toast('系统配置已保存', 'success');
+                        await this.loadRoutingStatus();
+                    } catch (e) { this.toast(e.message, 'error'); }
+                },
+                async loadRoutingStatus() {
+                    try {
+                        const res = await fetch('/api/admin/models/routing');
+                        if (res.ok) this.routingStatus = await res.json();
+                    } catch (e) { console.warn('routing status', e); }
+                },
+                async loadExperts() {
+                    try {
+                        const res = await fetch('/api/admin/experts');
+                        if (res.ok) {
+                            const d = await res.json();
+                            this.experts = d.experts || [];
+                            this.expertBindings = { ...(d.bindings || {}) };
+                            this.cloudProviders = d.providers || [];
+                        }
+                    } catch (e) { console.warn('experts', e); }
+                },
+                setExpertBinding(expertId, provider) {
+                    if (provider) this.expertBindings[expertId] = provider;
+                    else delete this.expertBindings[expertId];
+                },
+                async saveExpertBindings() {
+                    try {
+                        const res = await fetch('/api/admin/experts/bindings', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ bindings: this.expertBindings }),
+                        });
+                        if (!res.ok) throw new Error('保存失败');
+                        this.toast('专家 Provider 绑定已保存', 'success');
+                        await this.loadExperts();
+                        await this.loadRoutingStatus();
+                    } catch (e) { this.toast(e.message, 'error'); }
+                },
+                async loadLocalCatalog() {
+                    const res = await fetch('/api/admin/models/catalog/local');
+                    this.localCatalog = (await res.json()).models || [];
+                },
+                async loadCloudCatalog() {
+                    const res = await fetch('/api/admin/models/catalog/cloud');
+                    this.cloudCatalog = (await res.json()).providers || [];
+                },
+                async loadInstalled() {
+                    const res = await fetch('/api/admin/models/installed');
+                    const d = await res.json();
+                    this.installedModels = d.models || [];
+                    if (d.models_dir) this.modelsDir = d.models_dir;
+                },
+                async loadDownloads() {
+                    const res = await fetch('/api/admin/models/downloads');
+                    this.downloadTasks = (await res.json()).tasks || [];
+                    const active = this.downloadTasks.some(t => t.status === 'downloading' || t.status === 'pending');
+                    if (active && !this.downloadPollTimer) {
+                        this.downloadPollTimer = setInterval(() => this.pollDownloads(), 1500);
+                    } else if (!active && this.downloadPollTimer) {
+                        clearInterval(this.downloadPollTimer);
+                        this.downloadPollTimer = null;
+                    }
+                },
+                async pollDownloads() {
+                    await this.loadDownloads();
+                    if (this.downloadTasks.some(t => t.status === 'completed')) await this.loadInstalled();
+                },
+                filteredLocalCatalog() {
+                    return this.localCatalog.filter(m => {
+                        if (this.localRoleFilter && m.role !== this.localRoleFilter) return false;
+                        if (this.localFilter) {
+                            const q = this.localFilter.toLowerCase();
+                            return m.name.toLowerCase().includes(q) || m.description.toLowerCase().includes(q) || m.tags.some(t => t.includes(q));
+                        }
+                        return true;
+                    });
+                },
+                filteredCloudCatalog() {
+                    return this.cloudCatalog.filter(p => !this.cloudRegionFilter || p.region === this.cloudRegionFilter || p.region === 'both');
+                },
+                selectLocalModel(m) {
+                    this.selectedLocalModel = m;
+                    this.selectedHfModel = null;
+                    const rec = m.variants.find(v => v.recommended) || m.variants[0];
+                    this.selectedQuant = rec?.quant || '';
+                },
+                selectHfModel(r) {
+                    this.selectedHfModel = r;
+                    this.selectedLocalModel = null;
+                },
+                filterLocalOnly() {
+                    this.hfSearchResults = [];
+                },
+                async searchModels() {
+                    const q = (this.localFilter || '').trim();
+                    if (!q) { this.hfSearchResults = []; return; }
+                    this.searchLoading = true;
+                    try {
+                        const res = await fetch('/api/admin/models/search?q=' + encodeURIComponent(q));
+                        const d = await res.json();
+                        this.hfSearchResults = d.huggingface || [];
+                    } catch (e) { this.hfSearchResults = []; }
+                    this.searchLoading = false;
+                },
+                async downloadHfFile(repoId, filename) {
+                    if (!this.modelsDir) { this.toast('请先配置模型目录', 'error'); return; }
+                    try {
+                        const res = await fetch('/api/admin/models/download', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ repo_id: repoId, filename, models_dir: this.modelsDir }),
+                        });
+                        const d = await res.json();
+                        if (!res.ok) throw new Error(d.detail || '下载失败');
+                        this.toast(d.task.status === 'completed' ? '文件已存在' : '开始下载', 'success');
+                        await this.loadDownloads();
+                    } catch (e) { this.toast(e.message, 'error'); }
+                },
+                selectProvider(p) {
+                    this.selectedProvider = p;
+                    const rec = p.models.find(m => m.recommended) || p.models[0];
+                    this.cloudSetup = { api_key: '', model_id: rec?.id || '', set_default: true };
+                },
+                async downloadModel() {
+                    if (!this.modelsDir) { this.toast('请先配置模型目录', 'error'); this.modelSubTab = 'paths'; return; }
+                    if (!this.selectedLocalModel) return;
+                    try {
+                        const res = await fetch('/api/admin/models/download', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ model_id: this.selectedLocalModel.id, quant: this.selectedQuant, models_dir: this.modelsDir }),
+                        });
+                        const d = await res.json();
+                        if (!res.ok) throw new Error(d.detail || '下载失败');
+                        this.toast(d.task.status === 'completed' ? '模型已存在' : '开始下载', 'success');
+                        await this.loadDownloads();
+                    } catch (e) { this.toast(e.message, 'error'); }
+                },
+                async activateLocalModel(model, catalogId) {
+                    try {
+                        const body = { file_path: model.path, set_default: !model.in_config };
+                        if (catalogId) body.model_id = catalogId;
+                        else body.role = model.role || 'general';
+                        const res = await fetch('/api/admin/models/register-local', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(body),
+                        });
+                        if (!res.ok) throw new Error((await res.json()).detail || '激活失败');
+                        this.toast('云端 Provider 已注册', 'success');
+                        await this.loadInstalled();
+                        await this.loadModels();
+                    } catch (e) { this.toast(e.message, 'error'); }
+                },
+                async activateDownloaded(task) {
+                    if (!this.selectedLocalModel) { this.toast('请先选择对应模型库条目', 'info'); return; }
+                    await this.activateLocalModel({ path: task.dest_path }, this.selectedLocalModel.id);
+                },
+                async setupCloudProvider() {
+                    if (!this.selectedProvider || !this.cloudSetup.api_key) { this.toast('请填写 API Key', 'error'); return; }
+                    try {
+                        const res = await fetch('/api/admin/models/setup-cloud', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ provider_id: this.selectedProvider.id, ...this.cloudSetup }),
+                        });
+                        if (!res.ok) throw new Error((await res.json()).detail || '配置失败');
+                        this.toast('云端 Provider 已配置', 'success');
+                        this.cloudSetup.api_key = '';
+                        await this.loadModels();
+                        await this.loadAppConfig();
+                    } catch (e) { this.toast(e.message, 'error'); }
+                },
+                regionLabel(r) { return { intl: '国际', cn: '国内', both: '国内外' }[r] || r; },
+                roleLabel(r) {
+                    return {
+                        coding: '编程', general: '通用', fast: '轻量/调度',
+                        thinking: '深度推理', ocr: 'OCR', vision: '视觉', documents: '文档',
+                    }[r] || r;
+                },
+
+                editModel(m) {
+                    this.editingModel = { ...m, extra_config: m.extra_config || {} };
+                    this.showModelForm = true;
+                },
+
+                resetModelForm() {
+                    this.editingModel = { provider_type: 'openai', model_name: '', display_name: '', api_key: '', base_url: '', role: 'general', priority: 10, rpd: 0, rpm: 0, tpm: 0, is_active: true, extra_config: {} };
+                    this.showModelForm = false;
+                },
+
+                async saveModel() {
+                    if (!this.editingModel.model_name) {
+                        this.toast('模型名称不能为空', 'error');
+                        return;
+                    }
+                    try {
+                        const isEdit = !!this.editingModel.id;
+                        const url = isEdit ? '/api/admin/models/' + this.editingModel.id : '/api/admin/models';
+                        const method = isEdit ? 'PUT' : 'POST';
+                        const res = await fetch(url, {
+                            method,
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(this.editingModel)
+                        });
+                        if (res.ok) {
+                            this.toast(isEdit ? '模型已更新' : '模型已添加', 'success');
+                            this.resetModelForm();
+                            await this.loadModels();
+                        } else {
+                            const d = await res.json();
+                            this.toast(d.detail || '保存失败', 'error');
+                        }
+                    } catch (e) {
+                        this.toast('保存失败: ' + e.message, 'error');
+                    }
+                },
+
+                async deleteModel(id) {
+                    if (!confirm('确定要删除此模型配置吗？')) return;
+                    try {
+                        const res = await fetch('/api/admin/models/' + id, { method: 'DELETE' });
+                        if (res.ok) {
+                            await this.loadModels();
+                            this.toast('模型已删除', 'success');
+                        }
+                    } catch (e) {
+                        this.toast('删除失败: ' + e.message, 'error');
+                    }
+                },
+
+                async testModel(id) {
+                    this.toast('正在测试连接...', 'success');
+                    try {
+                        const res = await fetch('/api/admin/models/' + id + '/test', { method: 'POST' });
+                        const d = await res.json();
+                        this.toast(d.message, d.success ? 'success' : 'error');
+                    } catch (e) {
+                        this.toast('测试失败: ' + e.message, 'error');
+                    }
+                },
+
+                async rebuildIndex() {
+                    try {
+                        const res = await fetch('/api/knowledge/rebuild', { method: 'POST' });
+                        if (res.ok) this.toast('索引已重建', 'success');
+                    } catch (e) {
+                        this.toast('重建失败: ' + e.message, 'error');
+                    }
+                },
+
+                toast(message, type) {
+                    window.dispatchEvent(new CustomEvent('toast', { detail: { message, type } }));
+                }
+            };
+        }
+    </script>
+</body>
+</html>

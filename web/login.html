@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN" x-data="loginComponent()">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - CoolClaw</title>
+    <script src="https://unpkg.com/alpinejs@3.13.5" defer></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#00d9ff',
+                        secondary: '#0f3460',
+                        dark: '#1a1a2e',
+                        surface: '#16213e',
+                        card: '#0d1b2a',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>[x-cloak] { display: none !important; }</style>
+</head>
+<body class="bg-dark text-gray-100 min-h-screen flex items-center justify-center">
+    <div class="w-full max-w-md px-4" x-cloak>
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-primary mb-2">CoolClaw</h1>
+            <p class="text-gray-400 text-sm">本地 AI Agent 平台</p>
+        </div>
+
+        <div class="bg-surface rounded-2xl p-8 border border-secondary shadow-xl">
+            <h2 class="text-xl font-bold text-center mb-6" x-text="mode === 'login' ? '登录' : '注册账号'"></h2>
+
+            <div x-show="error" class="bg-red-500/20 border border-red-500 text-red-300 px-4 py-3 rounded-lg mb-4 text-sm" x-text="error"></div>
+
+            <form @submit.prevent="submit()">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">用户名</label>
+                        <input x-model="username" type="text" required autocomplete="username"
+                               class="w-full bg-card border border-secondary rounded-lg px-4 py-3 text-white focus:outline-none focus:border-primary transition"
+                               placeholder="输入用户名">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">密码</label>
+                        <input x-model="password" type="password" required autocomplete="current-password"
+                               class="w-full bg-card border border-secondary rounded-lg px-4 py-3 text-white focus:outline-none focus:border-primary transition"
+                               placeholder="输入密码">
+                    </div>
+                    <template x-if="mode === 'register'">
+                        <div>
+                            <label class="block text-sm text-gray-400 mb-1">确认密码</label>
+                            <input x-model="confirmPassword" type="password" autocomplete="new-password"
+                                   class="w-full bg-card border border-secondary rounded-lg px-4 py-3 text-white focus:outline-none focus:border-primary transition"
+                                   placeholder="再次输入密码">
+                        </div>
+                    </template>
+                </div>
+
+                <button type="submit" :disabled="loading"
+                        class="w-full mt-6 px-6 py-3 bg-primary text-dark font-bold rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                    <span x-show="!loading" x-text="mode === 'login' ? '登录' : '注册'"></span>
+                    <span x-show="loading">处理中...</span>
+                </button>
+            </form>
+
+            <div class="mt-6 text-center text-sm">
+                <template x-if="mode === 'login'">
+                    <span class="text-gray-400">
+                        没有账号？
+                        <button @click="mode = 'register'; error = ''" class="text-primary hover:underline">注册</button>
+                    </span>
+                </template>
+                <template x-if="mode === 'register'">
+                    <span class="text-gray-400">
+                        已有账号？
+                        <button @click="mode = 'login'; error = ''" class="text-primary hover:underline">登录</button>
+                    </span>
+                </template>
+            </div>
+        </div>
+
+        <p class="text-center text-gray-600 text-xs mt-6">CoolClaw v0.2.0</p>
+    </div>
+
+    <script>
+        function loginComponent() {
+            return {
+                mode: 'login',
+                username: '',
+                password: '',
+                confirmPassword: '',
+                error: '',
+                loading: false,
+
+                async submit() {
+                    this.error = '';
+                    this.loading = true;
+
+                    if (this.mode === 'register' && this.password !== this.confirmPassword) {
+                        this.error = '两次输入的密码不一致';
+                        this.loading = false;
+                        return;
+                    }
+
+                    if (this.password.length < 4) {
+                        this.error = '密码至少 4 个字符';
+                        this.loading = false;
+                        return;
+                    }
+
+                    try {
+                        const url = this.mode === 'login' ? '/api/auth/login' : '/api/auth/register';
+                        const res = await fetch(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                username: this.username.trim(),
+                                password: this.password
+                            })
+                        });
+
+                        const data = await res.json();
+
+                        if (res.ok && data.success) {
+                            if (this.mode === 'register') {
+                                // Auto-login after registration
+                                const loginRes = await fetch('/api/auth/login', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        username: this.username.trim(),
+                                        password: this.password
+                                    })
+                                });
+                                const loginData = await loginRes.json();
+                                if (loginRes.ok && loginData.success) {
+                                    window.location.href = '/';
+                                } else {
+                                    this.error = '注册成功，请手动登录';
+                                    this.mode = 'login';
+                                }
+                            } else {
+                                window.location.href = '/';
+                            }
+                        } else {
+                            this.error = data.detail || data.error || '操作失败';
+                        }
+                    } catch (e) {
+                        this.error = '连接服务器失败: ' + e.message;
+                    }
+
+                    this.loading = false;
+                }
+            };
+        }
+    </script>
+</body>
+</html>

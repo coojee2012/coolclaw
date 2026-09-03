@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="zh-CN" x-data="chatApp()" x-cloak>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>对话 - CoolClaw</title>
+    <script src="https://unpkg.com/alpinejs@3.13.5" defer></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/assets/app.js?v=20260826"></script>
+    <link rel="stylesheet" href="/assets/app.css">
+    <script>tailwind.config = CoolClaw.tailwindConfig;</script>
+</head>
+<body class="bg-dark text-gray-100 h-screen flex flex-col overflow-hidden">
+
+    <!-- Top bar -->
+    <header class="bg-surface border-b border-secondary/60 px-4 h-12 flex items-center justify-between shrink-0 z-20">
+        <div class="flex items-center gap-3">
+            <button @click="sessionPanelOpen = !sessionPanelOpen" class="lg:hidden p-1.5 hover:bg-secondary rounded">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+            <a href="/" class="font-bold text-primary text-lg tracking-tight">🦞 CoolClaw</a>
+            <span class="text-gray-600 hidden sm:inline">|</span>
+            <span class="text-sm text-gray-400 hidden sm:inline" x-text="currentSession?.name || '对话'"></span>
+        </div>
+        <div class="flex items-center gap-2 text-sm">
+            <span class="text-gray-500 hidden md:inline">模型</span>
+            <span class="text-primary text-xs bg-card px-2 py-0.5 rounded" x-text="modelStatus"></span>
+            <nav class="hidden md:flex items-center gap-0.5 ml-3">
+                <a href="/" class="px-3 py-1.5 rounded-lg bg-secondary/60 text-primary text-xs">对话</a>
+                <a href="/tasks.html" class="px-3 py-1.5 rounded-lg hover:bg-secondary text-gray-400 text-xs">任务</a>
+                <a href="/logs.html" class="px-3 py-1.5 rounded-lg hover:bg-secondary text-gray-400 text-xs">日志</a>
+                <a href="/settings.html" class="px-3 py-1.5 rounded-lg hover:bg-secondary text-gray-400 text-xs">设置</a>
+            </nav>
+            <div class="relative ml-1" x-show="user">
+                <button @click="userMenuOpen = !userMenuOpen" class="flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-secondary">
+                    <span class="w-6 h-6 rounded-full bg-secondary flex items-center justify-center text-primary text-xs font-bold" x-text="user?.username?.[0]?.toUpperCase()"></span>
+                </button>
+                <div x-show="userMenuOpen" @click.away="userMenuOpen = false" x-transition
+                     class="absolute right-0 mt-1 w-44 bg-surface border border-secondary rounded-lg shadow-xl z-50 py-1 text-sm">
+                    <div class="px-3 py-2 border-b border-secondary">
+                        <div class="font-medium" x-text="user?.username"></div>
+                        <div class="text-xs text-gray-500" x-text="user?.is_admin ? '管理员' : '用户'"></div>
+                    </div>
+                    <a href="/settings.html" class="block px-3 py-2 hover:bg-secondary text-gray-300">⚙️ 设置</a>
+                    <button @click="CoolClaw.logout()" class="w-full text-left px-3 py-2 text-red-400 hover:bg-secondary">退出登录</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex-1 flex overflow-hidden relative">
+
+        <!-- Session sidebar -->
+        <aside :class="sessionPanelOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
+               class="absolute lg:relative z-30 lg:z-0 w-72 h-full bg-card border-r border-secondary/60 flex flex-col transition-transform duration-200 shrink-0">
+            <div class="p-3 border-b border-secondary/60">
+                <button @click="createSession()"
+                        class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary/10 border border-primary/30 text-primary rounded-lg hover:bg-primary/20 transition text-sm font-medium">
+                    <span class="text-lg leading-none">+</span> 新建会话
+                </button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-2 space-y-0.5">
+                <template x-for="s in sessions" :key="s.id">
+                    <div @click="selectSession(s.id)"
+                         class="session-item rounded-lg px-3 py-2.5 cursor-pointer group"
+                         :class="sessionId === s.id ? 'active' : ''">
+                        <div class="flex items-start justify-between gap-1">
+                            <div class="min-w-0 flex-1">
+                                <div class="text-sm font-medium truncate" x-text="s.name"></div>
+                                <div class="text-xs text-gray-500 mt-0.5 truncate" :title="s.workdir"
+                                     x-text="CoolClaw.truncatePath(s.workdir, 28)"></div>
+                                <div class="text-xs text-gray-600 mt-0.5 flex gap-2">
+                                    <span x-text="s.message_count + ' 条消息'"></span>
+                                    <span x-text="CoolClaw.formatRelativeTime(s.updated_at)"></span>
+                                </div>
+                            </div>
+                            <div class="flex gap-0.5 opacity-0 group-hover:opacity-100 transition shrink-0">
+                                <button @click.stop="openRename(s)" class="p-1 hover:text-primary text-gray-500" title="重命名">✏️</button>
+                                <button @click.stop="deleteSession(s.id)" class="p-1 hover:text-red-400 text-gray-500" title="删除">🗑️</button>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+                <div x-show="sessions.length === 0" class="text-center text-gray-500 text-sm py-8">
+                    暂无会话，点击上方新建
+                </div>
+            </div>
+        </aside>
+
+        <!-- Mobile overlay -->
+        <div x-show="sessionPanelOpen" @click="sessionPanelOpen = false"
+             class="absolute inset-0 bg-black/50 z-20 lg:hidden"></div>
+
+        <!-- Main chat -->
+        <main class="flex-1 flex flex-col min-w-0">
+
+            <!-- Workdir bar -->
+            <div class="px-4 py-2 bg-card/50 border-b border-secondary/40 flex items-center gap-2 text-xs shrink-0">
+                <span class="text-gray-500 shrink-0">📂 工作目录</span>
+                <span class="truncate text-primary flex-1" :title="currentWorkdir"
+                      x-text="currentWorkdir ? CoolClaw.truncatePath(currentWorkdir, 60) : '未设置 — Agent 工具将无法操作文件'"></span>
+                <button @click="showWorkdirModal = true" class="shrink-0 px-2 py-1 bg-secondary hover:bg-secondary/80 rounded text-gray-300 transition">设置</button>
+                <button @click="filePanelOpen = !filePanelOpen"
+                        class="shrink-0 px-2 py-1 rounded transition"
+                        :class="filePanelOpen ? 'bg-primary text-dark' : 'bg-secondary text-gray-400 hover:text-white'">📁 文件</button>
+                <button @click="skillPanelOpen = !skillPanelOpen"
+                        class="shrink-0 px-2 py-1 rounded transition"
+                        :class="skillPanelOpen ? 'bg-primary text-dark' : 'bg-secondary text-gray-400 hover:text-white'">⚡ Skill</button>
+            </div>
+
+            <!-- Active expert bar -->
+            <div x-show="activeExpert && isLoading" x-transition
+                 class="px-4 py-1.5 bg-primary/10 border-b border-primary/20 text-xs flex items-center gap-2 shrink-0">
+                <span class="text-base" x-text="activeExpert?.expert_icon || '🎯'"></span>
+                <span class="text-primary font-medium" x-text="(activeExpert?.expert_name || '调度中') + ' 处理中…'"></span>
+                <span class="text-gray-600 shrink-0" x-show="activeExpert?.route_source"
+                      x-text="'[' + activeExpert.route_source + ']'"></span>
+                <span class="text-gray-600 shrink-0 font-mono" x-show="activeTraceId"
+                      x-text="'#' + activeTraceId"></span>
+                <span class="text-gray-500 truncate" x-show="activeExpert?.reasoning" x-text="activeExpert?.reasoning"></span>
+            </div>
+
+            <!-- Messages -->
+            <div class="flex-1 overflow-y-auto px-4 py-4" x-ref="msgContainer" @scroll="onScroll()">
+                <div class="max-w-3xl mx-auto">
+                    <div x-show="sessionSummary"
+                         class="mb-3 text-xs text-gray-500 bg-card/60 border border-secondary/40 rounded-lg px-3 py-2 leading-relaxed">
+                        <span class="text-primary">📋 会话摘要</span>
+                        <span class="text-gray-600">（较早对话已 LLM 压缩）</span>：
+                        <span x-text="sessionSummary"></span>
+                    </div>
+                    <div x-show="hiddenMessageCount > 0"
+                         class="text-center text-xs text-gray-500 py-2 sticky top-0 bg-surface/90 backdrop-blur-sm z-10 rounded">
+                        ↑ 还有 <span x-text="hiddenMessageCount"></span> 条较早消息（向上滚动查看）
+                    </div>
+                    <div x-show="virtualPadTop > 0" :style="`height: ${virtualPadTop}px`" aria-hidden="true"></div>
+                    <div class="space-y-4">
+                    <template x-for="item in visibleMessageItems" :key="`${item.idx}-${item.msg.role}-${(item.msg.content || '').length}`">
+                        <div class="fade-in" :class="item.msg.role === 'user' ? 'flex justify-end' : ''">
+                            <div class="max-w-[90%] rounded-2xl px-4 py-3"
+                                 :class="item.msg.role === 'user' ? 'msg-user' : 'msg-assistant'">
+                                <div x-show="item.msg.role === 'assistant'" class="text-xs text-primary mb-1.5 font-medium flex items-center gap-1.5">
+                                    <span>CoolClaw</span>
+                                    <span x-show="item.msg.expert" class="text-gray-400 font-normal"
+                                          x-text="(item.msg.expert_icon || '') + ' ' + item.msg.expert"></span>
+                                </div>
+                                <div class="prose-chat text-sm leading-relaxed" x-html="CoolClaw.formatContent(item.msg.content)"></div>
+
+                                <!-- Streaming tool indicators -->
+                                <template x-if="item.msg.tool_status">
+                                    <div class="mt-2 text-xs text-yellow-400 animate-pulse" x-text="'🔧 ' + item.msg.tool_status"></div>
+                                </template>
+
+                                <template x-if="item.msg.tool_calls && item.msg.tool_calls.length > 0">
+                                    <div class="mt-2 border-t border-secondary/50 pt-2">
+                                        <details class="group">
+                                            <summary class="text-xs text-gray-400 cursor-pointer hover:text-primary select-none">
+                                                🔧 工具调用 (<span x-text="item.msg.tool_calls.length"></span>)
+                                            </summary>
+                                            <div class="mt-1.5 space-y-1">
+                                                <template x-for="(tc, i) in item.msg.tool_calls" :key="i">
+                                                    <div class="tool-badge rounded px-2 py-1">
+                                                        <span class="text-primary" x-text="tc.name || tc.tool"></span>
+                                                        <span x-show="tc.success !== false" class="text-green-400 ml-1">✓</span>
+                                                        <span x-show="tc.success === false" class="text-red-400 ml-1">✗</span>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </details>
+                                    </div>
+                                </template>
+
+                                <div class="text-xs text-gray-600 mt-2 flex gap-2 flex-wrap" x-show="item.msg.model">
+                                    <span x-text="item.msg.model"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
+                    </div>
+                    <div x-show="virtualPadBottom > 0" :style="`height: ${virtualPadBottom}px`" aria-hidden="true"></div>
+
+                    <!-- Typing indicator -->
+                    <div x-show="isLoading && !streamingContent" class="fade-in">
+                        <div class="msg-assistant rounded-2xl px-4 py-3 inline-flex items-center gap-1.5">
+                            <span class="typing-dot w-1.5 h-1.5 bg-primary rounded-full"></span>
+                            <span class="typing-dot w-1.5 h-1.5 bg-primary rounded-full"></span>
+                            <span class="typing-dot w-1.5 h-1.5 bg-primary rounded-full"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Skill quick panel -->
+            <div x-show="skillPanelOpen" x-transition
+                 class="border-t border-secondary/40 bg-card/80 px-4 py-2 shrink-0">
+                <div class="max-w-3xl mx-auto">
+                    <div class="text-xs text-gray-500 mb-1.5">快捷 Skill — 点击插入对话</div>
+                    <div class="flex flex-wrap gap-1.5">
+                        <template x-for="sk in skills" :key="sk.name">
+                            <button @click="insertSkillPrompt(sk)"
+                                    class="skill-chip px-2.5 py-1 rounded-full text-xs text-gray-300"
+                                    :title="sk.description">
+                                <span x-text="sk.name"></span>
+                            </button>
+                        </template>
+                        <span x-show="skills.length === 0" class="text-xs text-gray-600">暂无可用 Skill（设置工作目录后可加载用户 Skill）</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input -->
+            <div class="border-t border-secondary/60 bg-surface px-4 py-3 shrink-0">
+                <div class="max-w-3xl mx-auto flex gap-2 items-end">
+                    <select x-model="selectedExpert"
+                            class="bg-card border border-secondary/60 rounded-lg px-2 py-2.5 text-xs text-gray-300 shrink-0 max-w-[7.5rem] focus:outline-none focus:border-primary"
+                            title="选择专家（自动=OMO 能力路由）">
+                        <option value="">🎯 自动</option>
+                        <template x-for="ex in experts" :key="ex.id">
+                            <option :value="ex.id" :disabled="!ex.ready"
+                                    x-text="(ex.icon || '') + ' ' + ex.name + (ex.ready ? '' : ' (不可用)')"></option>
+                        </template>
+                    </select>
+                    <button @click="clearChat()" class="p-2.5 bg-secondary hover:bg-secondary/80 rounded-lg text-gray-400 shrink-0" title="清空对话">🗑️</button>
+                    <textarea x-ref="inputBox" x-model="input"
+                              @keydown.enter.prevent="if (!event.shiftKey) sendMessage()"
+                              @input="autoResize($el)"
+                              placeholder="编码、写文档、跑 Skill… (Enter 发送, Shift+Enter 换行)"
+                              rows="1"
+                              class="flex-1 bg-card border border-secondary/60 rounded-xl px-4 py-2.5 resize-none focus:outline-none focus:border-primary text-sm leading-relaxed max-h-40"></textarea>
+                    <button @click="sendMessage()"
+                            :disabled="isLoading || !input.trim()"
+                            class="px-5 py-2.5 bg-primary text-dark font-bold rounded-xl hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition shrink-0 text-sm">
+                        <span x-show="!isLoading">发送</span>
+                        <span x-show="isLoading">…</span>
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <!-- File panel -->
+        <aside x-show="filePanelOpen" x-transition
+               class="w-72 border-l border-secondary/60 bg-card flex flex-col shrink-0 overflow-hidden"
+               :class="filePanelOpen ? 'flex' : 'hidden'">
+            <div class="p-2.5 border-b border-secondary/60">
+                <div class="flex items-center gap-1 text-xs text-gray-400 mb-1.5">
+                    <button @click="fileGoUp()" class="px-1.5 py-0.5 hover:bg-secondary rounded" :disabled="filePath === '.'">⬆️</button>
+                    <template x-for="(crumb, i) in fileBreadcrumbs" :key="i">
+                        <span class="flex items-center gap-0.5 min-w-0">
+                            <span x-show="i > 0" class="text-gray-600">/</span>
+                            <button @click="fileNavigate(crumb.path)" class="hover:text-primary truncate" x-text="crumb.name"></button>
+                        </span>
+                    </template>
+                </div>
+            </div>
+            <div class="flex-1 overflow-y-auto">
+                <template x-if="!fileViewPath">
+                    <div>
+                        <div x-show="fileLoading" class="p-4 text-center text-gray-500 text-xs">加载中…</div>
+                        <div x-show="!fileLoading && fileEntries.length === 0" class="p-4 text-center text-gray-500 text-xs">空目录</div>
+                        <template x-for="entry in fileEntries" :key="entry.name">
+                            <button @click="entry.kind === 'dir' ? fileEnterDir(entry.name) : fileOpen(entry.name)"
+                                    class="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-secondary/40 text-left">
+                                <span x-text="entry.kind === 'dir' ? '📁' : '📄'"></span>
+                                <span class="truncate flex-1" x-text="entry.name"></span>
+                                <span x-show="entry.kind === 'file'" class="text-gray-600 shrink-0" x-text="CoolClaw.formatSize(entry.size)"></span>
+                            </button>
+                        </template>
+                    </div>
+                </template>
+                <template x-if="fileViewPath">
+                    <div class="flex flex-col h-full">
+                        <div class="flex items-center gap-2 px-3 py-2 border-b border-secondary/40">
+                            <button @click="fileViewPath = ''" class="text-xs hover:text-primary">⬅️</button>
+                            <span class="text-xs text-gray-400 truncate" x-text="fileViewPath"></span>
+                        </div>
+                        <pre class="flex-1 overflow-auto m-0 p-3 text-xs leading-relaxed bg-transparent"><code x-text="fileContent"></code></pre>
+                    </div>
+                </template>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Workdir modal -->
+    <div x-show="showWorkdirModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4"
+         @keydown.escape.window="showWorkdirModal = false">
+        <div class="absolute inset-0 bg-black/60" @click="showWorkdirModal = false"></div>
+        <div class="relative bg-surface border border-secondary rounded-2xl p-6 w-full max-w-lg shadow-2xl" @click.stop>
+            <h3 class="text-lg font-bold text-primary mb-1">设置工作目录</h3>
+            <p class="text-sm text-gray-400 mb-4">每个会话独立保存。Agent 将在此目录下读写文件、执行命令和 Skill。</p>
+            <input x-model="workdirInput" @keydown.enter="saveWorkdir()"
+                   placeholder="服务器上的绝对路径，如 /Users/you/projects/myapp"
+                   class="w-full bg-card border border-secondary rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-primary mb-2">
+            <p class="text-xs text-gray-500 mb-4">提示：路径必须是服务器本机已存在的目录。未设置时将使用会话默认沙箱目录。</p>
+            <div class="flex justify-end gap-2">
+                <button @click="showWorkdirModal = false" class="px-4 py-2 rounded-lg bg-secondary text-gray-300 text-sm">取消</button>
+                <button @click="saveWorkdir()" class="px-4 py-2 rounded-lg bg-primary text-dark font-bold text-sm">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rename modal -->
+    <div x-show="showRenameModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/60" @click="showRenameModal = false"></div>
+        <div class="relative bg-surface border border-secondary rounded-2xl p-6 w-full max-w-sm shadow-2xl" @click.stop>
+            <h3 class="text-lg font-bold mb-4">重命名会话</h3>
+            <input x-model="renameInput" @keydown.enter="saveRename()"
+                   class="w-full bg-card border border-secondary rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-primary mb-4">
+            <div class="flex justify-end gap-2">
+                <button @click="showRenameModal = false" class="px-4 py-2 rounded-lg bg-secondary text-gray-300 text-sm">取消</button>
+                <button @click="saveRename()" class="px-4 py-2 rounded-lg bg-primary text-dark font-bold text-sm">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="fixed bottom-4 right-4 space-y-2 z-50 pointer-events-none"
+         x-data="{ toasts: [] }" @toast.window="toasts.push($event.detail); setTimeout(() => toasts.shift(), 3500)">
+        <template x-for="(t, i) in toasts" :key="i">
+            <div class="px-4 py-2.5 rounded-lg shadow-lg text-sm pointer-events-auto fade-in"
+                 :class="{'bg-primary text-dark': t.type==='info', 'bg-green-600 text-white': t.type==='success', 'bg-red-600 text-white': t.type==='error'}"
+                 x-text="t.message"></div>
+        </template>
+    </div>
+
+    <script>
+    function chatApp() {
+        return {
+            user: null,
+            userMenuOpen: false,
+            sessionPanelOpen: false,
+            filePanelOpen: false,
+            skillPanelOpen: false,
+            showWorkdirModal: false,
+            showRenameModal: false,
+
+            sessions: [],
+            sessionId: '',
+            messages: [],
+            input: '',
+            isLoading: false,
+            streamingContent: '',
+            activeExpert: null,
+            activeTraceId: '',
+            experts: [],
+            selectedExpert: '',
+            modelStatus: '加载中…',
+
+            currentWorkdir: '',
+            workdirInput: '',
+
+            skills: [],
+            renameInput: '',
+            renameTargetId: '',
+
+            fileEntries: [],
+            filePath: '.',
+            fileViewPath: '',
+            fileContent: '',
+            fileLoading: false,
+            fileBreadcrumbs: [],
+            autoScroll: true,
+            VIRTUAL_THRESHOLD: 60,
+            EST_MSG_HEIGHT: 110,
+            virtualStart: 0,
+            virtualEnd: 0,
+            sessionSummary: '',
+
+            get useVirtualScroll() {
+                return this.messages.length > this.VIRTUAL_THRESHOLD;
+            },
+
+            get visibleMessageItems() {
+                if (!this.useVirtualScroll) {
+                    return this.messages.map((msg, idx) => ({ msg, idx }));
+                }
+                let start = this.virtualStart;
+                let end = this.virtualEnd;
+                // 贴底或流式期间：始终渲染末尾消息，避免虚拟列表裁掉正在更新的回复
+                const pinTail = this.isLoading || this.autoScroll;
+                if (pinTail && this.messages.length > 0) {
+                    const tailStart = Math.max(0, this.messages.length - 10);
+                    start = Math.min(start, tailStart);
+                    end = this.messages.length;
+                }
+                return this.messages
+                    .slice(start, end)
+                    .map((msg, i) => ({ msg, idx: start + i }));
+            },
+
+            get virtualPadTop() {
+                return this.useVirtualScroll ? this.virtualStart * this.EST_MSG_HEIGHT : 0;
+            },
+
+            get virtualPadBottom() {
+                if (!this.useVirtualScroll) return 0;
+                return Math.max(0, (this.messages.length - this.virtualEnd) * this.EST_MSG_HEIGHT);
+            },
+
+            get hiddenMessageCount() {
+                return this.useVirtualScroll ? this.virtualStart : 0;
+            },
+
+            get currentSession() {
+                return this.sessions.find(s => s.id === this.sessionId);
+            },
+
+            async init() {
+                this.user = await CoolClaw.checkAuth();
+                if (!this.user) return;
+
+                fetch('/api/status').then(r => r.json()).then(d => {
+                    this.modelStatus = d.model || '就绪';
+                    if (d.experts?.length) this.experts = d.experts;
+                }).catch(() => { this.modelStatus = '就绪'; });
+
+                fetch('/api/experts').then(r => r.json()).then(d => {
+                    if (d.experts?.length) this.experts = d.experts;
+                }).catch(() => {});
+
+                await this.loadSessions();
+            },
+
+            async loadSessions() {
+                const res = await fetch('/api/sessions');
+                const d = await res.json();
+                this.sessions = d.sessions || [];
+
+                if (this.sessions.length === 0) {
+                    await this.createSession();
+                    return;
+                }
+
+                // Restore last session
+                let targetId = localStorage.getItem(`coolclaw_session_${this.user.id}`);
+                if (!targetId || !this.sessions.find(s => s.id === targetId)) {
+                    const prefs = await fetch('/api/user/preferences').then(r => r.json()).catch(() => ({}));
+                    const pref = (prefs.preferences || []).find(p => p.key === 'last_session_id');
+                    targetId = pref?.value || this.sessions[0].id;
+                }
+
+                if (this.sessionId !== targetId) {
+                    await this.selectSession(targetId, false);
+                } else {
+                    await this.loadSessionData();
+                }
+            },
+
+            async createSession() {
+                const res = await fetch('/api/sessions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: '', workdir: '' }),
+                });
+                const d = await res.json();
+                if (d.session) {
+                    await this.selectSession(d.session.id);
+                    CoolClaw.toast('新会话已创建', 'success');
+                }
+            },
+
+            async selectSession(id, reloadList = true) {
+                this.sessionId = id;
+                localStorage.setItem(`coolclaw_session_${this.user.id}`, id);
+                await fetch(`/api/sessions/${id}/activate`, { method: 'POST' });
+                if (reloadList) await this.loadSessionsList();
+                await this.loadSessionData();
+                this.sessionPanelOpen = false;
+            },
+
+            async loadSessionsList() {
+                const res = await fetch('/api/sessions');
+                const d = await res.json();
+                this.sessions = d.sessions || [];
+            },
+
+            async loadSessionData() {
+                if (!this.sessionId) return;
+
+                const [sessRes, wdRes] = await Promise.all([
+                    fetch(`/api/sessions/${this.sessionId}`),
+                    fetch(`/api/sessions/${this.sessionId}/workdir`),
+                ]);
+                const sessData = await sessRes.json();
+                const wdData = await wdRes.json();
+
+                const session = sessData.session;
+                this.currentWorkdir = wdData.workdir || '';
+                this.workdirInput = this.currentWorkdir;
+                this.sessionSummary = session?.summary || '';
+                if (session?.messages?.length > 0) {
+                    this.messages = session.messages.map(m => ({
+                        role: m.role,
+                        content: m.content || '',
+                        model: m.model || '',
+                        expert: m.metadata?.expert_name || m.expert || '',
+                        expert_icon: m.metadata?.expert_icon || '',
+                        tool_calls: m.metadata?.tool_calls || [],
+                    }));
+                } else {
+                    this.showWelcome();
+                }
+
+                this.autoScroll = true;
+                this.initVirtualWindow();
+                this.scrollToBottom(true);
+
+                await this.loadSkills();
+                if (this.filePanelOpen) this.loadFiles();
+            },
+
+            showWelcome() {
+                this.messages = [{
+                    role: 'assistant',
+                    content: `你好！我是 **CoolClaw**，你的本地 AI Agent。
+
+我可以帮你：
+- **编码开发** — 读写文件、搜索代码、运行测试、Git 操作
+- **日常工作** — 问答、写作、总结、数据分析
+- **Skill 自动化** — 天气查询、Word 文档生成等体力活
+
+请先点击上方 **设置** 配置此会话的工作目录，然后就可以开始对话了。`,
+                    model: 'CoolClaw',
+                }];
+            },
+
+            async saveWorkdir() {
+                if (!this.sessionId || !this.workdirInput.trim()) return;
+                const res = await fetch(`/api/sessions/${this.sessionId}/workdir`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: this.workdirInput.trim() }),
+                });
+                const d = await res.json();
+                if (!res.ok) {
+                    CoolClaw.toast(d.detail || '设置失败', 'error');
+                    return;
+                }
+                this.currentWorkdir = d.workdir;
+                this.workdirInput = d.workdir;
+                this.showWorkdirModal = false;
+                await this.loadSessionsList();
+                await this.loadSkills();
+                CoolClaw.toast('工作目录已保存', 'success');
+            },
+
+            async loadSkills() {
+                const q = this.currentWorkdir ? `?workdir=${encodeURIComponent(this.currentWorkdir)}` : '';
+                try {
+                    const res = await fetch(`/api/skills${q}`);
+                    const d = await res.json();
+                    this.skills = d.skills || [];
+                } catch { this.skills = []; }
+            },
+
+            insertSkillPrompt(sk) {
+                this.input = `请运行 Skill「${sk.name}」：${sk.description}`;
+                this.skillPanelOpen = false;
+                this.$refs.inputBox?.focus();
+            },
+
+            openRename(s) {
+                this.renameTargetId = s.id;
+                this.renameInput = s.name;
+                this.showRenameModal = true;
+            },
+
+            async saveRename() {
+                if (!this.renameTargetId || !this.renameInput.trim()) return;
+                await fetch(`/api/sessions/${this.renameTargetId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: this.renameInput.trim() }),
+                });
+                this.showRenameModal = false;
+                await this.loadSessionsList();
+                CoolClaw.toast('已重命名', 'success');
+            },
+
+            async deleteSession(id) {
+                if (!confirm('确定删除此会话？对话记录将无法恢复。')) return;
+                await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
+                if (this.sessionId === id) {
+                    this.sessionId = '';
+                    this.messages = [];
+                }
+                await this.loadSessions();
+                CoolClaw.toast('会话已删除', 'info');
+            },
+
+            async clearChat() {
+                if (!confirm('清空当前会话的对话记录？')) return;
+                await fetch('/api/clear', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: this.sessionId }),
+                });
+                this.showWelcome();
+                await this.loadSessionsList();
+            },
+
+            autoResize(el) {
+                el.style.height = 'auto';
+                el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+            },
+
+            onScroll() {
+                if (this.isLoading) return;
+                const el = this.$refs.msgContainer;
+                if (!el) return;
+                this.autoScroll = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+                this.updateVirtualWindow();
+            },
+
+            patchMessage(index, fields) {
+                if (index < 0 || index >= this.messages.length) return;
+                this.messages.splice(index, 1, { ...this.messages[index], ...fields });
+            },
+
+            ensureTailVisible() {
+                if (!this.useVirtualScroll) return;
+                this.virtualStart = Math.max(0, this.messages.length - 45);
+                this.virtualEnd = this.messages.length;
+            },
+
+            initVirtualWindow() {
+                if (this.useVirtualScroll) {
+                    const keep = 45;
+                    this.virtualStart = Math.max(0, this.messages.length - keep);
+                    this.virtualEnd = this.messages.length;
+                } else {
+                    this.virtualStart = 0;
+                    this.virtualEnd = this.messages.length;
+                }
+            },
+
+            updateVirtualWindow() {
+                if (!this.useVirtualScroll) {
+                    this.virtualEnd = this.messages.length;
+                    return;
+                }
+                const el = this.$refs.msgContainer;
+                if (!el) return;
+                const scrollTop = el.scrollTop;
+                const viewH = el.clientHeight;
+                const start = Math.floor(scrollTop / this.EST_MSG_HEIGHT);
+                const visible = Math.ceil(viewH / this.EST_MSG_HEIGHT);
+                const buf = 8;
+                this.virtualStart = Math.max(0, start - buf);
+                this.virtualEnd = Math.min(this.messages.length, start + visible + buf * 2);
+            },
+
+            scrollToBottom(force = false) {
+                if (!force && !this.autoScroll) return;
+                if (force || this.autoScroll) {
+                    this.virtualStart = Math.max(0, this.messages.length - 45);
+                    this.virtualEnd = this.messages.length;
+                }
+                const scroll = () => {
+                    const el = this.$refs.msgContainer;
+                    if (el) el.scrollTop = el.scrollHeight;
+                };
+                this.$nextTick(() => requestAnimationFrame(scroll));
+            },
+
+            async sendMessage() {
+                const message = this.input.trim();
+                if (!message || this.isLoading) return;
+
+                this.isLoading = true;
+                this.autoScroll = true;
+                this.streamingContent = '';
+                this.activeExpert = null;
+                this.messages.push({ role: 'user', content: message });
+                this.input = '';
+                this.$nextTick(() => this.autoResize(this.$refs.inputBox));
+                this.scrollToBottom();
+
+                const assistantIdx = this.messages.length;
+                this.messages.push({ role: 'assistant', content: '', model: '', expert: '', expert_icon: '', tool_calls: [] });
+                this.initVirtualWindow();
+
+                try {
+                    const response = await fetch('/api/chat/stream', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            message,
+                            session_id: this.sessionId,
+                            expert: this.selectedExpert || null,
+                        }),
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+
+                    let toolCalls = [];
+                    let modelName = '';
+                    let streamDone = false;
+                    let streamErrored = false;
+
+                    await CoolClaw.parseSSEStream(response, async (event, data) => {
+                        if (event === 'session') {
+                            try {
+                                const s = JSON.parse(data);
+                                if (s.session_id) this.sessionId = s.session_id;
+                            } catch {}
+                        } else if (event === 'trace') {
+                            try {
+                                const t = JSON.parse(data);
+                                if (t.trace_id) this.activeTraceId = t.trace_id;
+                            } catch {}
+                        } else if (event === 'dispatch') {
+                            try {
+                                const d = JSON.parse(data);
+                                this.activeExpert = d;
+                                if (d.trace?.trace_id) this.activeTraceId = d.trace.trace_id;
+                                this.patchMessage(assistantIdx, {
+                                    expert: d.expert_name || '',
+                                    expert_icon: d.expert_icon || '',
+                                });
+                            } catch {}
+                        } else if (event === 'token') {
+                            this.streamingContent += data;
+                            this.patchMessage(assistantIdx, { content: this.streamingContent });
+                            this.ensureTailVisible();
+                            this.scrollToBottom(true);
+                        } else if (event === 'tool_start') {
+                            try {
+                                const t = JSON.parse(data);
+                                this.patchMessage(assistantIdx, { tool_status: `正在调用 ${t.tool}…` });
+                            } catch {}
+                        } else if (event === 'tool_end') {
+                            try {
+                                const t = JSON.parse(data);
+                                toolCalls.push({ name: t.tool, success: t.success });
+                                this.patchMessage(assistantIdx, {
+                                    tool_calls: [...toolCalls],
+                                    tool_status: '',
+                                });
+                            } catch {}
+                        } else if (event === 'done') {
+                            streamDone = true;
+                            try {
+                                const d = JSON.parse(data);
+                                modelName = d.model || '';
+                                if (d.expert_name) {
+                                    this.patchMessage(assistantIdx, {
+                                        expert: d.expert_name,
+                                        expert_icon: d.expert_icon || '',
+                                    });
+                                }
+                                if (d.trace) {
+                                    if (d.trace.trace_id) this.activeTraceId = d.trace.trace_id;
+                                    if (d.trace.route_source && this.activeExpert) {
+                                        this.activeExpert.route_source = d.trace.route_source;
+                                    }
+                                }
+                                if (d.tool_calls?.length) toolCalls = d.tool_calls;
+                                const finalText = d.content || d.direct_answer || '';
+                                if (finalText) {
+                                    const merged = finalText.length >= this.streamingContent.length
+                                        ? finalText : this.streamingContent;
+                                    this.streamingContent = merged;
+                                    this.patchMessage(assistantIdx, { content: merged });
+                                }
+                            } catch {}
+                            this.activeExpert = null;
+                            this.activeTraceId = '';
+                            this.ensureTailVisible();
+                            this.scrollToBottom(true);
+                        } else if (event === 'error') {
+                            streamErrored = true;
+                            const errText = (this.messages[assistantIdx]?.content || '') + `\n\n❌ ${data}`;
+                            this.patchMessage(assistantIdx, { content: errText });
+                        }
+                    });
+
+                    if (!streamDone && streamErrored) {
+                        // Only fallback when stream failed without a done event
+                        const syncRes = await fetch('/api/chat', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                message,
+                                session_id: this.sessionId,
+                                expert: this.selectedExpert || null,
+                            }),
+                        });
+                        const syncData = await syncRes.json();
+                        if (syncData.success) {
+                            this.messages[assistantIdx].content = syncData.content;
+                            this.messages[assistantIdx].model = syncData.model;
+                            this.messages[assistantIdx].expert = syncData.expert_name || '';
+                            this.messages[assistantIdx].expert_icon = syncData.expert_icon || '';
+                            this.messages[assistantIdx].tool_calls = syncData.tool_calls || [];
+                        } else {
+                            this.messages[assistantIdx].content = '❌ ' + (syncData.error || '请求失败');
+                        }
+                    } else {
+                        this.patchMessage(assistantIdx, {
+                            model: modelName || 'AI',
+                            tool_calls: toolCalls,
+                            tool_status: '',
+                        });
+                        if (!this.messages[assistantIdx]?.content?.trim()) {
+                            // 流结束仍无内容：从已保存的会话拉取最后一条 assistant
+                            try {
+                                const sessRes = await fetch(`/api/sessions/${this.sessionId}`);
+                                const sessData = await sessRes.json();
+                                const saved = (sessData.session?.messages || [])
+                                    .filter(m => m.role === 'assistant')
+                                    .pop();
+                                if (saved?.content) {
+                                    this.patchMessage(assistantIdx, { content: saved.content });
+                                }
+                            } catch {}
+                        }
+                    }
+
+                    this.modelStatus = modelName || this.modelStatus;
+                    await this.loadSessionsList();
+                } catch (err) {
+                    this.patchMessage(assistantIdx, { content: '❌ 连接失败: ' + err.message });
+                    CoolClaw.toast('发送失败', 'error');
+                }
+
+                this.isLoading = false;
+                this.activeExpert = null;
+                this.streamingContent = '';
+                this.ensureTailVisible();
+                this.scrollToBottom(true);
+            },
+
+            // File browser
+            async loadFiles(path) {
+                if (!this.sessionId) return;
+                path = path || this.filePath || '.';
+                this.fileLoading = true;
+                this.fileViewPath = '';
+                try {
+                    const res = await fetch(`/api/sessions/${this.sessionId}/files?path=${encodeURIComponent(path)}`);
+                    const d = await res.json();
+                    if (res.ok) {
+                        this.fileEntries = d.entries || [];
+                        this.filePath = d.path || path;
+                        this._updateFileBreadcrumbs();
+                    }
+                } catch { this.fileEntries = []; }
+                this.fileLoading = false;
+            },
+
+            _updateFileBreadcrumbs() {
+                if (this.filePath === '.' || this.filePath === '/') {
+                    this.fileBreadcrumbs = [{ name: '~', path: '.' }];
+                    return;
+                }
+                const parts = this.filePath.split('/').filter(Boolean);
+                this.fileBreadcrumbs = [{ name: '~', path: '.' }];
+                let acc = '';
+                for (const p of parts) {
+                    acc = acc ? acc + '/' + p : p;
+                    this.fileBreadcrumbs.push({ name: p, path: acc });
+                }
+            },
+
+            fileEnterDir(name) {
+                const p = this.filePath === '.' ? name : this.filePath + '/' + name;
+                this.loadFiles(p);
+            },
+
+            fileNavigate(path) { this.loadFiles(path); },
+
+            fileGoUp() {
+                if (this.filePath === '.' || this.filePath === '/') return;
+                const parts = this.filePath.split('/').filter(Boolean);
+                parts.pop();
+                this.loadFiles(parts.length ? parts.join('/') : '.');
+            },
+
+            async fileOpen(name) {
+                const full = this.filePath === '.' ? name : this.filePath + '/' + name;
+                this.fileViewPath = full;
+                this.fileLoading = true;
+                try {
+                    const res = await fetch(`/api/sessions/${this.sessionId}/files/content?path=${encodeURIComponent(full)}`);
+                    const d = await res.json();
+                    this.fileContent = res.ok ? (d.content || '') : ('Error: ' + (d.detail || '读取失败'));
+                } catch (e) { this.fileContent = 'Error: ' + e.message; }
+                this.fileLoading = false;
+            },
+        };
+    }
+    </script>
+</body>
+</html>
