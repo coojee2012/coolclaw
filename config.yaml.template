@@ -1,0 +1,148 @@
+logging:
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  level: INFO
+models:
+  cloud:
+    default: gemini-3.5-flash-lite
+    google_ai:
+      api_key: 
+      generation_config:
+        max_tokens: 8192
+        temperature: 0.7
+        top_p: 0.9
+      model: gemini-3.5-flash-lite
+      safety_threshold: BLOCK_MEDIUM_AND_ABOVE
+  local:
+    default: lightonocr-2-1b-q4-k-m
+    qwen2_5_3b:
+      cache_type_k: q4_0
+      cache_type_v: q4_0
+      flash_attn: true
+      n_batch: 512
+      n_ctx: 4096
+      n_gpu_layers: -1
+      n_threads: 6
+      path: 
+      role: fast
+    qwen2_5_coder_7b:
+      cache_type_k: q4_0
+      cache_type_v: q4_0
+      flash_attn: true
+      low_vram: false
+      n_batch: 512
+      n_ctx: 4096
+      n_gpu_layers: -1
+      n_threads: 6
+      path: 
+      role: coding
+    lightonocr_2_1b_q4_k_m:
+      path: 
+      role: general
+      n_ctx: 4096
+      n_gpu_layers: 20
+      n_threads: 4
+      n_batch: 256
+      flash_attn: true
+      low_vram: true
+      cache_type_k: q4_0
+      cache_type_v: q4_0
+network:
+  http_proxy:
+  https_proxy: 
+paths:
+  cache_dir: ./cache
+  logs_dir: ./logs
+  models_dir: 
+  sessions_dir: ~/.opencode_helper/sessions
+proxy:
+  default_provider: google_ai
+  enabled: true
+  fallback_order:
+  - gemma
+  - google_ai
+  - openrouter
+  model_routes:
+    '*': gemma
+    gemini-2*: google_ai
+    gemini-3*: google_ai
+    gemma-*: gemma
+    google/*: openrouter
+  providers:
+    gemma:
+      api_key: 
+      base_url: https://generativelanguage.googleapis.com/v1beta
+      model: gemma-4-31b-it
+      timeout: 180
+    google_ai:
+      api_key: 
+      base_url: https://generativelanguage.googleapis.com/v1beta
+      model: gemini-3.5-flash-lite
+      timeout: 180
+      multimodal: true
+    openrouter:
+      api_key: 
+      base_url: https://openrouter.ai/api/v1
+      model: google/gemma-4-31b-it:free
+      timeout: 180
+  rate_limits:
+    gemma:
+      burst: 10
+      cooldown_seconds: 60
+      queue_size: 50
+      rpd: 1500
+      rpm: 25
+      timeout: 30
+    google_ai:
+      burst: 4
+      cooldown_seconds: 60
+      queue_size: 50
+      rpd: 1500
+      rpm: 8
+      timeout: 30
+    openrouter:
+      burst: 5
+      cooldown_seconds: 60
+      queue_size: 50
+      rpd: 500
+      rpm: 18
+      timeout: 30
+routing:
+  auto_threshold_tokens: 2000
+  cloud_timeout: 60
+  local_timeout: 300
+  mode: auto
+mcp:
+  enabled: true
+  max_rounds: 5
+  agent_model: ''
+sandbox:
+  enabled: true
+  allowed_commands:
+  - git
+  - python
+  - python3
+  - pip
+  - pip3
+  - npm
+  - node
+  - pytest
+  - unittest
+  - code
+  - ls
+  - cat
+  - grep
+  - find
+  - head
+  - tail
+  - wc
+  - echo
+  - pwd
+  - mkdir
+  - cp
+  - mv
+  - touch
+server:
+  api_key: 
+  host: 127.0.0.1
+  openai_endpoint: /v1/chat/completions
+  port: 8484
